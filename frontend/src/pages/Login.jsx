@@ -16,8 +16,8 @@ export default function Login() {
     setLoading(true);
     try {
       const user = await login(email, password);
-      if (user.userType === "Admin") navigate("/admin/dashboard");
-      else if (user.userType === "Supervisor") navigate("/supervisor/dashboard");
+     if (user.role === "admin") navigate("/admin/dashboard");
+      else if (user.role === "supervisor") navigate("/supervisor/dashboard");
       else navigate("/operator/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || "Login failed. Check your credentials.");

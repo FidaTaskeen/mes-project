@@ -38,7 +38,7 @@ export default function App() {
           <Route
             path="/admin/dashboard"
             element={
-              <ProtectedRoute allowedRoles={["Admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <AdminDashboard />
               </ProtectedRoute>
             }
@@ -46,157 +46,177 @@ export default function App() {
           <Route
             path="/admin/items"
             element={
-              <ProtectedRoute allowedRoles={["Admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <AdminItems />
               </ProtectedRoute>
             }
           />
-
           <Route
             path="/admin/operations"
             element={
-              <ProtectedRoute allowedRoles={["Admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <AdminOperations />
               </ProtectedRoute>
-  }
-/>
+            }
+          />
           <Route
-           path="/admin/users"
-           element={
-            <ProtectedRoute allowedRoles={["Admin"]}>
-              <AdminUsers />
-            </ProtectedRoute>
-  }
-/>
-          <Route
-           path="/admin/roles"
+            path="/admin/users"
             element={
-             <ProtectedRoute allowedRoles={["Admin"]}>
-              <RolesPermissions />
-               </ProtectedRoute>} />
-
-          <Route 
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <AdminUsers />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/roles"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <RolesPermissions />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/admin/settings"
-             element={
-              <ProtectedRoute allowedRoles={["Admin"]}>
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <Settings />
-                </ProtectedRoute>} />
-
+              </ProtectedRoute>
+            }
+          />
           <Route
-            path="/admin/audit-logs" 
-             element={<ProtectedRoute allowedRoles={["Admin"]}>
-              <AuditLogs />
-               </ProtectedRoute>} />
-
-          <Route 
+            path="/admin/audit-logs"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <AuditLogs />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/admin/backup"
-              element={<ProtectedRoute allowedRoles={["Admin"]}>
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <BackupRestore />
-                 </ProtectedRoute>} />
-
+              </ProtectedRoute>
+            }
+          />
           <Route
-           path="/admin/bom"
-            element={<ProtectedRoute allowedRoles={["Admin"]}>
-              <BOM />
-              </ProtectedRoute>} />
-
-              <Route
-               path="/admin/routing" 
-               element={<ProtectedRoute allowedRoles={["Admin"]}>
+            path="/admin/bom"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <BOM />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/routing"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <Routing />
-                </ProtectedRoute>} />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Supervisor routes */}
           <Route
             path="/supervisor/dashboard"
             element={
-              <ProtectedRoute allowedRoles={["Supervisor"]}>
+              <ProtectedRoute allowedRoles={["supervisor"]}>
                 <SupervisorDashboard />
               </ProtectedRoute>
             }
           />
-
           <Route
             path="/supervisor/create-job-order"
             element={
-              <ProtectedRoute allowedRoles={["Supervisor"]}>
+              <ProtectedRoute allowedRoles={["supervisor"]}>
                 <CreateJobOrder />
               </ProtectedRoute>
-  }
-/>
+            }
+          />
           <Route
             path="/supervisor/job-order-list"
             element={
-             <ProtectedRoute allowedRoles={["Supervisor"]}>
-               <JobOrderList />
-             </ProtectedRoute>
-  }
-/>
+              <ProtectedRoute allowedRoles={["supervisor"]}>
+                <JobOrderList />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/supervisor/job-order-details/:jobOrderNo"
             element={
-             <ProtectedRoute allowedRoles={["Supervisor"]}>
-               <JobOrderDetails />
-             </ProtectedRoute>
-  }
-/>
+              <ProtectedRoute allowedRoles={["supervisor"]}>
+                <JobOrderDetails />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/supervisor/monitoring"
             element={
-              <ProtectedRoute allowedRoles={["Supervisor"]}>
-                 <ProductionMonitoring />
+              <ProtectedRoute allowedRoles={["supervisor"]}>
+                <ProductionMonitoring />
               </ProtectedRoute>
-  }
-/>
-          <Route 
-          path="/supervisor/reports" 
-          element={
-            <ProtectedRoute allowedRoles={["Supervisor"]}>
-              <Reports />
-            </ProtectedRoute>} />
+            }
+          />
+          <Route
+            path="/supervisor/reports"
+            element={
+              <ProtectedRoute allowedRoles={["supervisor"]}>
+                <Reports />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Operator routes */}
           <Route
             path="/operator/dashboard"
             element={
-              <ProtectedRoute allowedRoles={["Operator"]}>
+              <ProtectedRoute allowedRoles={["operator"]}>
                 <OperatorDashboard />
               </ProtectedRoute>
             }
           />
           <Route
-           path="/operator/scan" 
-           element={<ProtectedRoute allowedRoles={["Operator"]}>
-            <ScanJobOrder />
-            </ProtectedRoute>} />
-
+            path="/operator/scan"
+            element={
+              <ProtectedRoute allowedRoles={["operator"]}>
+                <ScanJobOrder />
+              </ProtectedRoute>
+            }
+          />
           <Route
-           path="/operator/my-operations"
-            element={<ProtectedRoute allowedRoles={["Operator"]}>
-              <MyOperations />
-              </ProtectedRoute>} />
+            path="/operator/my-operations"
+            element={
+              <ProtectedRoute allowedRoles={["operator"]}>
+                <MyOperations />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/operator/production-entry"
+            element={
+              <ProtectedRoute allowedRoles={["operator"]}>
+                <ProductionEntry />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/operator/history"
+            element={
+              <ProtectedRoute allowedRoles={["operator"]}>
+                <ProductionHistory />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/operator/performance"
+            element={
+              <ProtectedRoute allowedRoles={["operator"]}>
+                <MyPerformance />
+              </ProtectedRoute>
+            }
+          />
 
-          <Route 
-          path="/operator/production-entry"
-           element={<ProtectedRoute allowedRoles={["Operator"]}>
-            <ProductionEntry />
-             </ProtectedRoute>} />
-
-          <Route 
-          path="/operator/history"
-           element={<ProtectedRoute allowedRoles={["Operator"]}>
-            <ProductionHistory />
-             </ProtectedRoute>} />
-
-          <Route 
-          path="/operator/performance" 
-          element={<ProtectedRoute allowedRoles={["Operator"]}>
-            <MyPerformance />
-            </ProtectedRoute>} />
-
-          <Route 
-          path="/unauthorized"
-           element={<h1 className="p-8">Not authorized</h1>} />
+          <Route path="/unauthorized" element={<h1 className="p-8">Not authorized</h1>} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
