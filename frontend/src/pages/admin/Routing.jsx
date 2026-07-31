@@ -32,6 +32,7 @@ export default function Routing() {
     steps: [{ operation: "", sequenceNo: "", standardTime: "" }],
   });
 
+  // For the operation-details popup when a tile is clicked
   const [selectedStep, setSelectedStep] = useState(null);
 
   const loadData = async () => {
@@ -195,6 +196,7 @@ export default function Routing() {
                 </div>
               </div>
 
+              {/* Operations as clickable tiles, dashboard "Quick Actions" style */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
                 {routing.steps
                   .slice()
@@ -225,6 +227,7 @@ export default function Routing() {
         </div>
       )}
 
+      {/* Operation details popup when a tile is clicked */}
       {selectedStep && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-sm">

@@ -1,7 +1,6 @@
-import { useState, useEffect } from "react";
-import { GitBranch, Clock, Layers } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Package, Settings2, Users, GitBranch, Layers, Shield, Clock } from "lucide-react";
 import Layout from "../../components/Layout";
-import axiosInstance from "../../api/axiosInstance";
 
 const navGroups = [
   { items: [{ label: "Admin Dashboard", path: "/admin/dashboard" }] },
@@ -15,305 +14,104 @@ const navGroups = [
       { label: "Users", path: "/admin/users" },
     ],
   },
+  {
+    title: "SYSTEM",
+    items: [
+      { label: "Roles & Permissions", path: "/admin/roles" },
+      { label: "Settings", path: "/admin/settings" },
+      { label: "Audit Logs", path: "/admin/audit-logs" },
+      { label: "Backup / Restore", path: "/admin/backup" },
+    ],
+  },
 ];
 
-export default function Routing() {
-  const [routings, setRoutings] = useState([]);
-  const [items, setItems] = useState([]);
-  const [operations, setOperations] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+// Mock stats — later replaced by real counts from GET /api/items, /api/users, etc.
+const stats = [
+  { label: "Total Items", value: 3, icon: Package, accent: "text-blue-600 bg-blue-50" },
+  { label: "Total Operations", value: 2, icon: Settings2, accent: "text-orange-600 bg-orange-50" },
+  { label: "Active Users", value: 3, icon: Users, accent: "text-green-600 bg-green-50" },
+  { label: "Routings Defined", value: 1, icon: GitBranch, accent: "text-purple-600 bg-purple-50" },
+];
 
-  const [showForm, setShowForm] = useState(false);
-  const [editingRouting, setEditingRouting] = useState(null);
-  const [form, setForm] = useState({
-    routingCode: "",
-    item: "",
-    steps: [{ operation: "", sequenceNo: "", standardTime: "" }],
-  });
+const quickLinks = [
+  { label: "Manage Items", path: "/admin/items", icon: Package },
+  { label: "Manage Operations", path: "/admin/operations", icon: Settings2 },
+  { label: "Manage BOM", path: "/admin/bom", icon: Layers },
+  { label: "Manage Routing", path: "/admin/routing", icon: GitBranch },
+  { label: "Manage Users", path: "/admin/users", icon: Users },
+  { label: "Roles & Permissions", path: "/admin/roles", icon: Shield },
+];
 
-  const loadData = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const [routingsRes, itemsRes, opsRes] = await Promise.all([
-        axiosInstance.get("/routings?limit=100"),
-        axiosInstance.get("/items?limit=100"),
-        axiosInstance.get("/operations?limit=100"),
-      ]);
-      setRoutings(routingsRes.data.routings || []);
-      setItems(itemsRes.data.items || []);
-      setOperations(opsRes.data.operations || []);
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
+// Mock recent activity — later replaced by GET /api/audit-logs?limit=5
+const recentActivity = [
+  { user: "Ashwini", action: "Created", entity: "Item ITM-002", time: "10:15 AM" },
+  { user: "Ashwini", action: "Updated", entity: "Operation OP-001", time: "11:02 AM" },
+  { user: "Test Supervisor", action: "Created", entity: "Job Order JO-000124", time: "12:40 PM" },
+];
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const openAddForm = () => {
-    setEditingRouting(null);
-    setForm({
-      routingCode: "",
-      item: "",
-      steps: [{ operation: "", sequenceNo: "", standardTime: "" }],
-    });
-    setShowForm(true);
-  };
-
-  const openEditForm = (routing) => {
-    setEditingRouting(routing);
-    setForm({
-      routingCode: routing.routingCode,
-      item: routing.item?._id || routing.item,
-      steps: routing.steps.map((s) => ({
-        operation: s.operation?._id || s.operation,
-        sequenceNo: s.sequenceNo,
-        standardTime: s.standardTime,
-      })),
-    });
-    setShowForm(true);
-  };
-
-  const updateStepRow = (index, field, value) => {
-    const updatedSteps = form.steps.map((s, i) =>
-      i === index ? { ...s, [field]: value } : s
-    );
-    setForm({ ...form, steps: updatedSteps });
-  };
-
-  const addStepRow = () => {
-    setForm({
-      ...form,
-      steps: [...form.steps, { operation: "", sequenceNo: "", standardTime: "" }],
-    });
-  };
-
-  const removeStepRow = (index) => {
-    setForm({ ...form, steps: form.steps.filter((_, i) => i !== index) });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    const payload = {
-      routingCode: form.routingCode,
-      item: form.item,
-      steps: form.steps.map((s) => ({
-        operation: s.operation,
-        sequenceNo: Number(s.sequenceNo),
-        standardTime: Number(s.standardTime),
-      })),
-    };
-    try {
-      if (editingRouting) {
-        await axiosInstance.put(`/routings/${editingRouting._id}`, payload);
-      } else {
-        await axiosInstance.post("/routings", payload);
-      }
-      setShowForm(false);
-      loadData();
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to save routing");
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm("Delete this routing?")) return;
-    try {
-      await axiosInstance.delete(`/routings/${id}`);
-      loadData();
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to delete routing");
-    }
-  };
-
-  const itemLabel = (item) => {
-    if (!item) return "—";
-    if (typeof item === "object") return `${item.itemCode} - ${item.name}`;
-    const found = items.find((i) => i._id === item);
-    return found ? `${found.itemCode} - ${found.name}` : "—";
-  };
-
-  const operationLabel = (operation) => {
-    if (!operation) return "—";
-    if (typeof operation === "object") return `${operation.operationCode} - ${operation.operationName}`;
-    const found = operations.find((o) => o._id === operation);
-    return found ? `${found.operationCode} - ${found.operationName}` : "—";
-  };
-
+export default function AdminDashboard() {
   return (
     <Layout portalName="Admin Portal" theme="blue" navGroups={navGroups}>
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Routing</h1>
-          <p className="text-slate-500 text-sm">Manage operation sequences for each item.</p>
-        </div>
-        <button
-          onClick={openAddForm}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
-        >
-          + Add Routing
-        </button>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">Welcome back</h1>
+        <p className="text-slate-500 text-sm">Here's what's happening across your master data today.</p>
       </div>
 
-      {error && (
-        <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>
-      )}
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        {stats.map((s) => (
+          <div key={s.label} className="bg-white rounded-xl shadow-sm border p-5">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${s.accent}`}>
+              <s.icon size={20} />
+            </div>
+            <p className="text-2xl font-bold">{s.value}</p>
+            <p className="text-xs text-slate-500 mt-1">{s.label}</p>
+          </div>
+        ))}
+      </div>
 
-      {loading ? (
-        <p className="text-slate-500">Loading...</p>
-      ) : routings.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border p-10 text-center text-slate-400">
-          No routings yet.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {routings.map((routing) => (
-            <div key={routing._id} className="bg-white rounded-xl shadow-sm border p-5 flex flex-col">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-                    <GitBranch size={20} />
-                  </div>
-                  <div>
-                    <p className="font-semibold">{routing.routingCode}</p>
-                    <p className="text-xs text-slate-500">{itemLabel(routing.item)}</p>
-                  </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Quick links */}
+        <div className="lg:col-span-2">
+          <h2 className="font-medium mb-3">Quick Actions</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {quickLinks.map((q) => (
+              <Link
+                key={q.path}
+                to={q.path}
+                className="bg-white border rounded-xl p-4 flex flex-col items-center gap-2 text-center hover:border-blue-400 hover:shadow-sm transition"
+              >
+                <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <q.icon size={18} />
                 </div>
-                <div className="flex gap-3 text-sm">
-                  <button onClick={() => openEditForm(routing)} className="text-blue-600 hover:underline">
-                    Edit
-                  </button>
-                  <button onClick={() => handleDelete(routing._id)} className="text-red-600 hover:underline">
-                    Delete
-                  </button>
+                <span className="text-xs font-medium text-slate-700">{q.label}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Recent activity */}
+        <div>
+          <h2 className="font-medium mb-3">Recent Activity</h2>
+          <div className="bg-white rounded-xl shadow-sm border divide-y">
+            {recentActivity.map((a, i) => (
+              <div key={i} className="p-4 flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
+                  <Clock size={14} />
+                </div>
+                <div className="text-sm">
+                  <p>
+                    <span className="font-medium">{a.user}</span>{" "}
+                    <span className="text-slate-500">{a.action.toLowerCase()}</span>{" "}
+                    <span className="font-medium">{a.entity}</span>
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">{a.time}</p>
                 </div>
               </div>
-
-              <div className="border-t pt-3 space-y-2.5">
-                {routing.steps
-                  .slice()
-                  .sort((a, b) => a.sequenceNo - b.sequenceNo)
-                  .map((step, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-500 text-xs font-medium flex items-center justify-center shrink-0">
-                        {step.sequenceNo}
-                      </div>
-                      <p className="text-sm text-slate-700 flex-1">{operationLabel(step.operation)}</p>
-                      <div className="flex items-center gap-1 text-xs text-slate-400">
-                        <Clock size={12} />
-                        {step.standardTime} min
-                      </div>
-                    </div>
-                  ))}
-              </div>
-
-              <div className="mt-4 pt-3 border-t flex items-center gap-2 text-xs text-slate-400">
-                <Layers size={14} />
-                {routing.steps.length} operations in sequence
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      )}
-
-      {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
-          <form onSubmit={handleSubmit} className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-bold mb-4">{editingRouting ? "Edit Routing" : "Add Routing"}</h2>
-
-            <label className="block text-sm font-medium mb-1">Routing Code</label>
-            <input
-              value={form.routingCode}
-              onChange={(e) => setForm({ ...form, routingCode: e.target.value })}
-              required
-              className="w-full border rounded-lg px-3 py-2 mb-4"
-            />
-
-            <label className="block text-sm font-medium mb-1">Item</label>
-            <select
-              value={form.item}
-              onChange={(e) => setForm({ ...form, item: e.target.value })}
-              required
-              className="w-full border rounded-lg px-3 py-2 mb-4"
-            >
-              <option value="">-- Select Item --</option>
-              {items.map((item) => (
-                <option key={item._id} value={item._id}>
-                  {item.itemCode} - {item.name}
-                </option>
-              ))}
-            </select>
-
-            <label className="block text-sm font-medium mb-2">Operations in Sequence</label>
-            <div className="space-y-2 mb-3">
-              {form.steps.map((step, index) => (
-                <div key={index} className="flex gap-2 items-start">
-                  <select
-                    value={step.operation}
-                    onChange={(e) => updateStepRow(index, "operation", e.target.value)}
-                    required
-                    className="flex-1 border rounded-lg px-2 py-2 text-sm"
-                  >
-                    <option value="">-- Operation --</option>
-                    {operations.map((o) => (
-                      <option key={o._id} value={o._id}>
-                        {o.operationCode} - {o.operationName}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="number"
-                    placeholder="Seq"
-                    value={step.sequenceNo}
-                    onChange={(e) => updateStepRow(index, "sequenceNo", e.target.value)}
-                    required
-                    className="w-16 border rounded-lg px-2 py-2 text-sm"
-                  />
-                  <input
-                    type="number"
-                    placeholder="Time (min)"
-                    value={step.standardTime}
-                    onChange={(e) => updateStepRow(index, "standardTime", e.target.value)}
-                    required
-                    className="w-24 border rounded-lg px-2 py-2 text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeStepRow(index)}
-                    disabled={form.steps.length === 1}
-                    className="text-red-600 text-sm px-2 disabled:opacity-30"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={addStepRow}
-              className="text-blue-600 text-sm font-medium mb-4"
-            >
-              + Add Operation
-            </button>
-
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-slate-600">
-                Cancel
-              </button>
-              <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">
-                Save
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      </div>
     </Layout>
   );
 }
