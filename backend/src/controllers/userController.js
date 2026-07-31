@@ -1,7 +1,6 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 
-// @route  GET /api/users  (admin only, supports ?search=&role=&status=&page=&limit=)
 exports.getUsers = async (req, res) => {
   try {
     const { search, role, status, page = 1, limit = 20 } = req.query;
@@ -18,6 +17,7 @@ exports.getUsers = async (req, res) => {
 
     const users = await User.find(filter)
       .select('-password')
+      .populate('assignedOperations', 'operationCode operationName')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit));
@@ -36,10 +36,11 @@ exports.getUsers = async (req, res) => {
   }
 };
 
-// @route  GET /api/users/:id
 exports.getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
+    const user = await User.findById(req.params.id)
+      .select('-password')
+      .populate('assignedOperations', 'operationCode operationName');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -50,10 +51,9 @@ exports.getUserById = async (req, res) => {
   }
 };
 
-// @route  POST /api/users  (admin creates a user directly, e.g. for staff without self-registration)
 exports.createUser = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, assignedOperations } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required' });
@@ -71,16 +71,20 @@ exports.createUser = async (req, res) => {
       email,
       password: hashedPassword,
       role: role || 'operator',
+      assignedOperations: assignedOperations || [],
     });
+
+    const populated = await user.populate('assignedOperations', 'operationCode operationName');
 
     res.status(201).json({
       message: 'User created successfully',
       user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        status: user.status,
+        id: populated._id,
+        name: populated.name,
+        email: populated.email,
+        role: populated.role,
+        status: populated.status,
+        assignedOperations: populated.assignedOperations,
       },
     });
   } catch (err) {
@@ -89,10 +93,9 @@ exports.createUser = async (req, res) => {
   }
 };
 
-// @route  PUT /api/users/:id  (update name, email, role, status — not password here)
 exports.updateUser = async (req, res) => {
   try {
-    const { name, email, role, status } = req.body;
+    const { name, email, role, status, assignedOperations } = req.body;
 
     const user = await User.findById(req.params.id);
     if (!user) {
@@ -110,17 +113,22 @@ exports.updateUser = async (req, res) => {
     user.email = email ?? user.email;
     user.role = role ?? user.role;
     user.status = status ?? user.status;
+    if (assignedOperations !== undefined) {
+      user.assignedOperations = assignedOperations;
+    }
 
     await user.save();
+    const populated = await user.populate('assignedOperations', 'operationCode operationName');
 
     res.status(200).json({
       message: 'User updated successfully',
       user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        status: user.status,
+        id: populated._id,
+        name: populated.name,
+        email: populated.email,
+        role: populated.role,
+        status: populated.status,
+        assignedOperations: populated.assignedOperations,
       },
     });
   } catch (err) {
@@ -129,7 +137,6 @@ exports.updateUser = async (req, res) => {
   }
 };
 
-// @route  PUT /api/users/:id/reset-password  (admin resets a user's password)
 exports.resetPassword = async (req, res) => {
   try {
     const { newPassword } = req.body;
@@ -153,7 +160,6 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
-// @route  DELETE /api/users/:id
 exports.deleteUser = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);

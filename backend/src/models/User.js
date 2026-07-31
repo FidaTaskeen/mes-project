@@ -30,6 +30,12 @@ const userSchema = new mongoose.Schema(
       enum: ['active', 'inactive'],
       default: 'active',
     },
+    assignedOperations: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Operation',
+      },
+    ],
   },
   { timestamps: true }
 );
