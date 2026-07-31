@@ -68,7 +68,7 @@ export default function Layout({ portalName, theme = "blue", navGroups, children
           <div />
           <div className="flex items-center gap-4">
             <span className="text-sm text-slate-600">
-              {user?.name} <span className="text-slate-400">({user?.userType})</span>
+              {user?.name} <span className="text-slate-400">({user?.role})</span>
             </span>
             <button onClick={logout} className="text-sm text-red-600 font-medium">
               Logout

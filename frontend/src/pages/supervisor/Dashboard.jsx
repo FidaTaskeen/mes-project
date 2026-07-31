@@ -4,7 +4,6 @@ const navGroups = [
   {
     items: [
       { label: "Supervisor Dashboard", path: "/supervisor/dashboard" },
-      { label: "Job Orders", path: "/supervisor/job-orders" },
       { label: "Create Job Order", path: "/supervisor/create-job-order" },
       { label: "Job Order List", path: "/supervisor/job-order-list" },
       { label: "Production Monitoring", path: "/supervisor/monitoring" },
@@ -12,7 +11,6 @@ const navGroups = [
     ],
   },
 ];
-
 export default function SupervisorDashboard() {
   return (
     <Layout portalName="Supervisor Portal" theme="green" navGroups={navGroups}>
