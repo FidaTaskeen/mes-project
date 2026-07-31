@@ -5,12 +5,9 @@ const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
 const [user, setUser] = useState(() => {
-  // TEMPORARY TEST MODE — remove once backend login works
-  return { name: "Test Admin", userType: "Admin" };
-
-  // const saved = localStorage.getItem("mes_user");
-  // return saved ? JSON.parse(saved) : null;
-});
+    const saved = localStorage.getItem("mes_user");
+    return saved ? JSON.parse(saved) : null;
+  });
 
   const login = async (email, password) => {
     const res = await axiosInstance.post("/auth/login", { email, password });
