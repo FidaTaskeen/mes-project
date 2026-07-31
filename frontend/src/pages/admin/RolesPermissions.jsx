@@ -19,7 +19,7 @@ const navGroups = [
       { label: "Settings", path: "/admin/settings" },
       { label: "Audit Logs", path: "/admin/audit-logs" },
       { label: "Backup / Restore", path: "/admin/backup" },
-    ],
+    ], 
   },
 ];
 
