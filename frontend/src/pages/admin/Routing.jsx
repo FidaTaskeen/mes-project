@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { GitBranch, Clock, Settings2, X } from "lucide-react";
 import Layout from "../../components/Layout";
 import axiosInstance from "../../api/axiosInstance";
 
@@ -30,6 +31,9 @@ export default function Routing() {
     item: "",
     steps: [{ operation: "", sequenceNo: "", standardTime: "" }],
   });
+
+  // For the operation-details popup when a tile is clicked
+  const [selectedStep, setSelectedStep] = useState(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -138,82 +142,149 @@ export default function Routing() {
     return found ? `${found.itemCode} - ${found.name}` : "—";
   };
 
-  const operationLabel = (operation) => {
-    if (!operation) return "—";
-    if (typeof operation === "object") return `${operation.operationCode} - ${operation.operationName}`;
-    const found = operations.find((o) => o._id === operation);
-    return found ? `${found.operationCode} - ${found.operationName}` : "—";
+  const resolveOperation = (operation) => {
+    if (typeof operation === "object") return operation;
+    return operations.find((o) => o._id === operation) || null;
   };
 
   return (
     <Layout portalName="Admin Portal" theme="blue" navGroups={navGroups}>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Routing</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Routing</h1>
+          <p className="text-slate-500 text-sm">Manage operation sequences for each item.</p>
+        </div>
         <button
           onClick={openAddForm}
-          className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700"
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
         >
           + Add Routing
         </button>
       </div>
 
       {error && (
-        <div className="bg-red-50 text-red-600 text-sm p-3 rounded mb-4">{error}</div>
+        <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>
       )}
 
       {loading ? (
         <p className="text-slate-500">Loading...</p>
+      ) : routings.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm border p-10 text-center text-slate-400">
+          No routings yet.
+        </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-100 text-left">
-              <tr>
-                <th className="px-4 py-3">Routing Code</th>
-                <th className="px-4 py-3">Item</th>
-                <th className="px-4 py-3">Operations (in sequence)</th>
-                <th className="px-4 py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {routings.map((routing) => (
-                <tr key={routing._id} className="border-t align-top">
-                  <td className="px-4 py-3 font-medium">{routing.routingCode}</td>
-                  <td className="px-4 py-3">{itemLabel(routing.item)}</td>
-                  <td className="px-4 py-3">
-                    {routing.steps
-                      .slice()
-                      .sort((a, b) => a.sequenceNo - b.sequenceNo)
-                      .map((step, i) => (
-                        <div key={i} className="text-slate-600">
-                          {step.sequenceNo}. {operationLabel(step.operation)} ({step.standardTime} min)
+        <div className="space-y-6">
+          {routings.map((routing) => (
+            <div key={routing._id} className="bg-white rounded-xl shadow-sm border p-5">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                    <GitBranch size={20} />
+                  </div>
+                  <div>
+                    <p className="font-semibold">{routing.routingCode}</p>
+                    <p className="text-xs text-slate-500">{itemLabel(routing.item)}</p>
+                  </div>
+                </div>
+                <div className="flex gap-3 text-sm">
+                  <button onClick={() => openEditForm(routing)} className="text-blue-600 hover:underline">
+                    Edit
+                  </button>
+                  <button onClick={() => handleDelete(routing._id)} className="text-red-600 hover:underline">
+                    Delete
+                  </button>
+                </div>
+              </div>
+
+              {/* Operations as clickable tiles, dashboard "Quick Actions" style */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                {routing.steps
+                  .slice()
+                  .sort((a, b) => a.sequenceNo - b.sequenceNo)
+                  .map((step, i) => {
+                    const op = resolveOperation(step.operation);
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => setSelectedStep({ step, op })}
+                        className="bg-white border rounded-xl p-4 flex flex-col items-center gap-2 text-center hover:border-blue-400 hover:shadow-sm transition"
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center relative">
+                          <Settings2 size={18} />
+                          <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-700 text-white text-[10px] flex items-center justify-center">
+                            {step.sequenceNo}
+                          </span>
                         </div>
-                      ))}
-                  </td>
-                  <td className="px-4 py-3 space-x-3">
-                    <button onClick={() => openEditForm(routing)} className="text-blue-600 hover:underline">
-                      Edit
-                    </button>
-                    <button onClick={() => handleDelete(routing._id)} className="text-red-600 hover:underline">
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {routings.length === 0 && (
-                <tr>
-                  <td colSpan="4" className="px-4 py-6 text-center text-slate-400">
-                    No routings yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                        <span className="text-xs font-medium text-slate-700 leading-tight">
+                          {op ? op.operationName : "—"}
+                        </span>
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Operation details popup when a tile is clicked */}
+      {selectedStep && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm">
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <Settings2 size={20} />
+                </div>
+                <div>
+                  <p className="font-semibold">
+                    {selectedStep.op ? selectedStep.op.operationName : "—"}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Step {selectedStep.step.sequenceNo} in sequence
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedStep(null)} className="text-slate-400 hover:text-slate-600">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between border-b pb-2">
+                <span className="text-slate-500">Operation Code</span>
+                <span className="font-medium">{selectedStep.op?.operationCode || "—"}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="text-slate-500">Work Center</span>
+                <span className="font-medium">{selectedStep.op?.workCenter || "—"}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="text-slate-500">Standard Time (this step)</span>
+                <span className="font-medium flex items-center gap-1">
+                  <Clock size={14} />
+                  {selectedStep.step.standardTime} min
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Status</span>
+                <span className="font-medium">{selectedStep.op?.status || "—"}</span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setSelectedStep(null)}
+              className="w-full mt-5 bg-blue-600 text-white py-2 rounded-lg text-sm font-medium"
+            >
+              Close
+            </button>
+          </div>
         </div>
       )}
 
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
-          <form onSubmit={handleSubmit} className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <form onSubmit={handleSubmit} className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-bold mb-4">{editingRouting ? "Edit Routing" : "Add Routing"}</h2>
 
             <label className="block text-sm font-medium mb-1">Routing Code</label>
@@ -221,7 +292,7 @@ export default function Routing() {
               value={form.routingCode}
               onChange={(e) => setForm({ ...form, routingCode: e.target.value })}
               required
-              className="w-full border rounded px-3 py-2 mb-4"
+              className="w-full border rounded-lg px-3 py-2 mb-4"
             />
 
             <label className="block text-sm font-medium mb-1">Item</label>
@@ -229,7 +300,7 @@ export default function Routing() {
               value={form.item}
               onChange={(e) => setForm({ ...form, item: e.target.value })}
               required
-              className="w-full border rounded px-3 py-2 mb-4"
+              className="w-full border rounded-lg px-3 py-2 mb-4"
             >
               <option value="">-- Select Item --</option>
               {items.map((item) => (
@@ -247,7 +318,7 @@ export default function Routing() {
                     value={step.operation}
                     onChange={(e) => updateStepRow(index, "operation", e.target.value)}
                     required
-                    className="flex-1 border rounded px-2 py-2 text-sm"
+                    className="flex-1 border rounded-lg px-2 py-2 text-sm"
                   >
                     <option value="">-- Operation --</option>
                     {operations.map((o) => (
@@ -262,7 +333,7 @@ export default function Routing() {
                     value={step.sequenceNo}
                     onChange={(e) => updateStepRow(index, "sequenceNo", e.target.value)}
                     required
-                    className="w-16 border rounded px-2 py-2 text-sm"
+                    className="w-16 border rounded-lg px-2 py-2 text-sm"
                   />
                   <input
                     type="number"
@@ -270,7 +341,7 @@ export default function Routing() {
                     value={step.standardTime}
                     onChange={(e) => updateStepRow(index, "standardTime", e.target.value)}
                     required
-                    className="w-24 border rounded px-2 py-2 text-sm"
+                    className="w-24 border rounded-lg px-2 py-2 text-sm"
                   />
                   <button
                     type="button"
@@ -296,7 +367,7 @@ export default function Routing() {
               <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-slate-600">
                 Cancel
               </button>
-              <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded text-sm">
+              <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">
                 Save
               </button>
             </div>
