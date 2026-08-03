@@ -22,10 +22,7 @@ const emptyForm = {
   item: "",
   version: "Version 1",
   status: "Active",
-  plant: "",
-  shopfloor: "",
   description: "",
-  inputItemDescription: "",
   steps: [{ operation: "", sequenceNo: "", standardTime: "" }],
 };
 
@@ -42,13 +39,7 @@ export default function Routing() {
   const [form, setForm] = useState(emptyForm);
   const [viewingRouting, setViewingRouting] = useState(null);
 
-  const [filters, setFilters] = useState({
-    plant: "",
-    shopfloor: "",
-    routingCode: "",
-    itemQuery: "",
-    description: "",
-  });
+  const [filters, setFilters] = useState({ routingCode: "" });
 
   const loadData = async () => {
     setLoading(true);
@@ -56,8 +47,6 @@ export default function Routing() {
     try {
       const params = new URLSearchParams();
       if (filters.routingCode) params.set("search", filters.routingCode);
-      if (filters.plant) params.set("plant", filters.plant);
-      if (filters.shopfloor) params.set("shopfloor", filters.shopfloor);
       params.set("status", tab);
       params.set("limit", "100");
 
@@ -94,10 +83,7 @@ export default function Routing() {
       item: routing.item?._id || routing.item,
       version: routing.version || "Version 1",
       status: routing.status,
-      plant: routing.plant || "",
-      shopfloor: routing.shopfloor || "",
       description: routing.description || "",
-      inputItemDescription: routing.inputItemDescription || "",
       steps: routing.steps.map((s) => ({
         operation: s.operation?._id || s.operation,
         sequenceNo: s.sequenceNo,
@@ -187,23 +173,7 @@ export default function Routing() {
 
       {/* Filter bar */}
       <div className="bg-white rounded-xl shadow-sm border p-4 mb-4">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-3">
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Plant</label>
-            <input
-              value={filters.plant}
-              onChange={(e) => setFilters({ ...filters, plant: e.target.value })}
-              className="w-full border rounded-lg px-2 py-1.5 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Shopfloor</label>
-            <input
-              value={filters.shopfloor}
-              onChange={(e) => setFilters({ ...filters, shopfloor: e.target.value })}
-              className="w-full border rounded-lg px-2 py-1.5 text-sm"
-            />
-          </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">Routing Code</label>
             <input
@@ -219,7 +189,7 @@ export default function Routing() {
           </button>
           <button
             onClick={() => {
-              setFilters({ plant: "", shopfloor: "", routingCode: "", itemQuery: "", description: "" });
+              setFilters({ routingCode: "" });
               loadData();
             }}
             className="border px-4 py-1.5 rounded-lg text-sm font-medium text-slate-600"
@@ -249,8 +219,6 @@ export default function Routing() {
         <table className="w-full text-sm whitespace-nowrap">
           <thead className="bg-slate-100 text-left">
             <tr>
-              <th className="px-4 py-3">Plant</th>
-              <th className="px-4 py-3">Shopfloor</th>
               <th className="px-4 py-3">Routing Code</th>
               <th className="px-4 py-3">Item No / Name</th>
               <th className="px-4 py-3">Description</th>
@@ -262,14 +230,12 @@ export default function Routing() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="9" className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
+              <tr><td colSpan="7" className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
             ) : routings.length === 0 ? (
-              <tr><td colSpan="9" className="px-4 py-6 text-center text-slate-400">No routings found.</td></tr>
+              <tr><td colSpan="7" className="px-4 py-6 text-center text-slate-400">No routings found.</td></tr>
             ) : (
               routings.map((routing) => (
                 <tr key={routing._id} className="border-t hover:bg-slate-50">
-                  <td className="px-4 py-3">{routing.plant || "—"}</td>
-                  <td className="px-4 py-3">{routing.shopfloor || "—"}</td>
                   <td className="px-4 py-3 font-medium">{routing.routingCode}</td>
                   <td className="px-4 py-3">
                     {itemLabel(routing.item)}
@@ -325,7 +291,6 @@ export default function Routing() {
         </table>
       </div>
 
-      {/* View details modal */}
       {viewingRouting && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -383,22 +348,6 @@ export default function Routing() {
                     <option key={item._id} value={item._id}>{item.itemCode} - {item.name}</option>
                   ))}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Plant</label>
-                <input
-                  value={form.plant}
-                  onChange={(e) => setForm({ ...form, plant: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Shopfloor</label>
-                <input
-                  value={form.shopfloor}
-                  onChange={(e) => setForm({ ...form, shopfloor: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2"
-                />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Version</label>
