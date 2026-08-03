@@ -20,9 +20,34 @@ const operationSchema = new mongoose.Schema(
       trim: true,
     },
     standardTime: {
-      type: Number, // in minutes
+      type: Number,
       required: [true, 'Standard time is required'],
       min: [0, 'Standard time cannot be negative'],
+    },
+    plant: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    shopfloor: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    machineGroup: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    routingType: {
+      type: String,
+      enum: ['Direct Checkout', 'Check In/Out', 'Standard'],
+      default: 'Direct Checkout',
+    },
+    operationRank: {
+      type: String,
+      trim: true,
+      default: '',
     },
     status: {
       type: String,
