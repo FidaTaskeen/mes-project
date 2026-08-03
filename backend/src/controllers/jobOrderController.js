@@ -1,6 +1,7 @@
 const JobOrder = require('../models/JobOrder');
 const Item = require('../models/Item');
 const Routing = require('../models/Routing');
+const User = require('../models/User');
 
 const generateJobOrderNo = async () => {
   const count = await JobOrder.countDocuments();
@@ -193,6 +194,7 @@ exports.getDashboardSummary = async (req, res) => {
     res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
 };
+
 // @route  GET /api/joborders/monitoring/overview
 exports.getProductionMonitoring = async (req, res) => {
   try {
@@ -228,6 +230,52 @@ exports.getProductionMonitoring = async (req, res) => {
     res.status(200).json({ monitoring, total: monitoring.length });
   } catch (err) {
     console.error('Production monitoring error:', err.message);
+    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+  }
+};
+
+// @route  GET /api/joborders/my-queue  (Operator: job orders waiting at their assigned operation)
+exports.getMyQueue = async (req, res) => {
+  try {
+    const currentUser = await User.findById(req.user.id).select('assignedOperations');
+    const assignedOps = currentUser?.assignedOperations || [];
+
+    if (assignedOps.length === 0) {
+      return res.status(200).json({ queue: [] });
+    }
+
+    const jobOrders = await JobOrder.find({ status: { $in: ['Released', 'In Progress'] } })
+      .populate('item', 'itemCode name')
+      .populate({
+        path: 'routing',
+        populate: { path: 'steps.operation', select: 'operationCode operationName workCenter' },
+      })
+      .sort({ dueDate: 1 });
+
+    const assignedOpIds = assignedOps.map((id) => id.toString());
+
+    const queue = jobOrders
+      .filter((jo) => {
+        const currentStep = jo.routing?.steps?.[jo.currentOperationIndex];
+        const currentOpId = currentStep?.operation?._id?.toString();
+        return currentOpId && assignedOpIds.includes(currentOpId);
+      })
+      .map((jo) => {
+        const currentStep = jo.routing.steps[jo.currentOperationIndex];
+        return {
+          jobOrderId: jo._id,
+          jobOrderNo: jo.jobOrderNo,
+          item: jo.item,
+          quantity: jo.quantity,
+          remainingQuantity: jo.quantity - (jo.completedQuantity + jo.rejectQuantity),
+          currentOperation: currentStep.operation,
+          dueDate: jo.dueDate,
+        };
+      });
+
+    res.status(200).json({ queue });
+  } catch (err) {
+    console.error('Get my queue error:', err.message);
     res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
 };
