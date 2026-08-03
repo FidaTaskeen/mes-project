@@ -1,3 +1,4 @@
+import OperationJobList from "./pages/operator/OperationJobList";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -176,8 +177,24 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
+         <Route
             path="/operator/scan"
+            element={
+              <ProtectedRoute allowedRoles={["operator"]}>
+                <ScanJobOrder />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/operator/operation/:operationId"
+            element={
+              <ProtectedRoute allowedRoles={["operator"]}>
+                <OperationJobList />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/operator/scan/:jobOrderId"
             element={
               <ProtectedRoute allowedRoles={["operator"]}>
                 <ScanJobOrder />

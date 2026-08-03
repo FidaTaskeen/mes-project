@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { useLocation, useNavigate, Link } from "react-router-dom";
-import { QrCode, RefreshCcw } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { ArrowLeft, ScanLine } from "lucide-react";
 import Layout from "../../components/Layout";
 import axiosInstance from "../../api/axiosInstance";
 
@@ -18,231 +18,256 @@ const navGroups = [
 ];
 
 export default function ScanJobOrder() {
+  const { jobOrderId: paramJobOrderId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [jobOrderNoInput, setJobOrderNoInput] = useState(location.state?.jobOrderNo || "");
-  const [jobOrder, setJobOrder] = useState(null);
-  const [currentStep, setCurrentStep] = useState(null);
+  const [jobOrderNoInput, setJobOrderNoInput] = useState("");
+  const [jobOrderId, setJobOrderId] = useState(paramJobOrderId || null);
+
+  const [status, setStatus] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [serialId, setSerialId] = useState("");
+  const [scanStatus, setScanStatus] = useState("Pass");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [scanError, setScanError] = useState("");
+  const inputRef = useRef(null);
 
-  const [serialId, setSerialId] = useState("");
-  const [status, setStatus] = useState("Pass");
-  const [submitting, setSubmitting] = useState(false);
-  const [recentScans, setRecentScans] = useState([]);
-
-  const loadJobOrder = async (jobOrderNo) => {
-    if (!jobOrderNo) return;
+  const loadJobOrderStatus = async (id) => {
     setLoading(true);
     setError("");
     try {
-      const res = await axiosInstance.get(`/joborders/scan/${jobOrderNo}`);
-      setJobOrder(res.data.jobOrder);
-      setCurrentStep(res.data.currentStep);
-      loadRecentScans(res.data.jobOrder.jobOrderNo);
+      const [statusRes, logsRes] = await Promise.all([
+        axiosInstance.get(`/scanlogs/job-order-status/${id}`),
+        axiosInstance.get(`/scanlogs?jobOrder=${id}`),
+      ]);
+      setStatus(statusRes.data);
+      setLogs(logsRes.data.logs || []);
+      setJobOrderId(id);
     } catch (err) {
-      setJobOrder(null);
       setError(err.response?.data?.message || "Failed to load job order");
+      setStatus(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadRecentScans = async (jobOrderNo) => {
-    try {
-      const res = await axiosInstance.get("/scan-logs", {
-        params: { jobOrderNo, page: 1, limit: 5 },
-      });
-      setRecentScans(res.data.logs || []);
-    } catch {
-      // non-fatal, leave the panel empty
-    }
-  };
-
   useEffect(() => {
-    if (location.state?.jobOrderNo) {
-      loadJobOrder(location.state.jobOrderNo);
+    if (paramJobOrderId) {
+      loadJobOrderStatus(paramJobOrderId);
+    } else if (location.state?.jobOrderNo) {
+      handleManualSearch(location.state.jobOrderNo);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [paramJobOrderId]);
 
-  const handleSubmitScan = async (e) => {
-    e.preventDefault();
-    if (!serialId.trim() || !jobOrder) return;
-    setSubmitting(true);
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.focus();
+  }, [jobOrderId]);
+
+  const handleManualSearch = async (jobOrderNo) => {
+    const no = jobOrderNo || jobOrderNoInput;
+    if (!no) return;
+    setLoading(true);
     setError("");
     try {
-      await axiosInstance.post("/scan-logs", {
-        jobOrderNo: jobOrder.jobOrderNo,
-        serialId: serialId.trim(),
-        status,
-      });
-      setSerialId("");
-      setStatus("Pass");
-      await loadJobOrder(jobOrder.jobOrderNo); // refresh counters + step
+      const scanRes = await axiosInstance.get(`/joborders/scan/${no}`);
+      await loadJobOrderStatus(scanRes.data.jobOrder._id);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to record scan");
+      setError(err.response?.data?.message || "Job order not found");
+      setStatus(null);
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
-  const totalQty = jobOrder?.quantity || 0;
-  const completedQty = jobOrder?.completedQuantity || 0;
-  const rejectQty = jobOrder?.rejectQuantity || 0;
-  const processed = completedQty + rejectQty;
-  const pending = Math.max(totalQty - processed, 0);
-  const balance = pending;
+  const handleScanSubmit = async (e) => {
+    e.preventDefault();
+    if (!serialId.trim()) return;
+    setScanError("");
+    try {
+      await axiosInstance.post("/scanlogs", {
+        jobOrder: jobOrderId,
+        serialId: serialId.trim(),
+        status: scanStatus,
+      });
+      setSerialId("");
+      loadJobOrderStatus(jobOrderId);
+    } catch (err) {
+      setScanError(err.response?.data?.message || "Failed to record scan");
+    }
+  };
 
   return (
     <Layout portalName="Operator Portal" theme="purple" navGroups={navGroups}>
-      <h1 className="text-2xl font-bold mb-6">Scan Job Order</h1>
-
-      {!jobOrder && (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            loadJobOrder(jobOrderNoInput.trim());
-          }}
-          className="bg-white rounded-lg shadow p-6 max-w-md mb-6"
+      {jobOrderId && (
+        <button
+          onClick={() => navigate("/operator/dashboard")}
+          className="flex items-center gap-1.5 text-sm text-slate-500 mb-4 hover:text-slate-700"
         >
-          <label className="text-sm text-slate-500 mb-1 block">Job Order No.</label>
+          <ArrowLeft size={14} /> Dashboard
+        </button>
+      )}
+
+      {!jobOrderId && (
+        <div className="bg-white rounded-xl shadow-sm border p-5 mb-5 max-w-md">
+          <label className="block text-sm font-medium mb-1">Enter Job Order No.</label>
           <div className="flex gap-2">
             <input
               value={jobOrderNoInput}
               onChange={(e) => setJobOrderNoInput(e.target.value)}
-              placeholder="e.g. JO-2026-0001"
+              placeholder="e.g. JO-2026-0005"
               className="flex-1 border rounded-lg px-3 py-2 text-sm"
-              autoFocus
             />
             <button
-              type="submit"
-              disabled={loading}
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
+              onClick={() => handleManualSearch()}
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
             >
-              {loading ? "Loading..." : "Load"}
+              Search
             </button>
           </div>
-        </form>
+        </div>
       )}
 
-      {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4 max-w-2xl">{error}</div>}
+      {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4 max-w-md">{error}</div>}
 
-      {jobOrder && currentStep && (
+      {loading && <p className="text-slate-500">Loading...</p>}
+
+      {status && (
         <>
-          {/* Summary card */}
-          <div className="bg-white rounded-xl shadow-sm border p-5 mb-4">
-            <div className="flex items-center justify-between mb-4">
+          {/* Header info */}
+          <div className="bg-white rounded-xl shadow-sm border p-5 mb-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-xs text-slate-400">{currentStep.operation.operationName}</p>
-                <h2 className="text-lg font-semibold">{jobOrder.jobOrderNo}</h2>
+                <p className="text-xs text-slate-400 mb-1">
+                  {status.currentOperation?.operationCode} - {status.currentOperation?.operationName}
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-1 text-sm">
+                  <div>
+                    <p className="text-slate-400 text-xs">Job Order</p>
+                    <p className="font-medium">{status.jobOrder.jobOrderNo}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 text-xs">Item No.</p>
+                    <p className="font-medium">{status.jobOrder.item?.itemCode}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 text-xs">Item Description</p>
+                    <p className="font-medium">{status.jobOrder.item?.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 text-xs">Quantity</p>
+                    <p className="font-medium">{status.jobOrder.quantity}</p>
+                  </div>
+                </div>
               </div>
-              <button
-                onClick={() => { setJobOrder(null); setJobOrderNoInput(""); }}
-                className="text-xs text-purple-600 hover:underline flex items-center gap-1"
-              >
-                <RefreshCcw size={12} /> Scan another
-              </button>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm mb-4">
-              <div><p className="text-slate-400 text-xs">Item</p><p className="font-medium">{jobOrder.item?.itemCode}</p></div>
-              <div><p className="text-slate-400 text-xs">Description</p><p className="font-medium">{jobOrder.item?.name}</p></div>
-              <div><p className="text-slate-400 text-xs">Quantity</p><p className="font-medium">{totalQty}</p></div>
-              <div><p className="text-slate-400 text-xs">Work Center</p><p className="font-medium">{currentStep.operation.workCenter || "-"}</p></div>
-            </div>
-            <div className="grid grid-cols-4 gap-3">
-              <div className="bg-slate-50 rounded-lg p-3 text-center">
-                <p className="text-xl font-bold">{totalQty}</p>
-                <p className="text-xs text-slate-500">Total</p>
-              </div>
-              <div className="bg-amber-50 rounded-lg p-3 text-center">
-                <p className="text-xl font-bold text-amber-600">{pending}</p>
-                <p className="text-xs text-slate-500">Pending</p>
-              </div>
-              <div className="bg-green-50 rounded-lg p-3 text-center">
-                <p className="text-xl font-bold text-green-600">{completedQty}</p>
-                <p className="text-xs text-slate-500">Completed</p>
-              </div>
-              <div className="bg-blue-50 rounded-lg p-3 text-center">
-                <p className="text-xl font-bold text-blue-600">{balance}</p>
-                <p className="text-xs text-slate-500">Balance</p>
+              <div className="flex gap-4 text-center">
+                <div>
+                  <p className="text-xl font-bold">{status.counts.total}</p>
+                  <p className="text-xs text-slate-400">Total</p>
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-amber-600">{status.counts.pending}</p>
+                  <p className="text-xs text-slate-400">Pending</p>
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-green-600">{status.counts.completed}</p>
+                  <p className="text-xs text-slate-400">Completed</p>
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-blue-600">{status.counts.balance}</p>
+                  <p className="text-xs text-slate-400">Balance</p>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Scan input */}
             <div className="bg-white rounded-xl shadow-sm border p-5">
-              <h3 className="font-medium mb-3">Scan Serial ID</h3>
-              <form onSubmit={handleSubmitScan}>
-                <div className="flex items-center border rounded-lg px-3 py-2 mb-3">
+              <h2 className="font-medium mb-3">Scan Serial ID</h2>
+              {scanError && (
+                <div className="bg-red-50 text-red-600 text-sm p-2 rounded mb-3">{scanError}</div>
+              )}
+              <form onSubmit={handleScanSubmit}>
+                <div className="relative mb-4">
+                  <ScanLine size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
+                    ref={inputRef}
                     value={serialId}
                     onChange={(e) => setSerialId(e.target.value)}
-                    placeholder="Scan or type serial ID"
-                    className="flex-1 outline-none text-sm"
+                    placeholder="Scan or type serial number"
+                    className="w-full border rounded-lg pl-9 pr-3 py-2.5 text-sm"
                     autoFocus
                   />
-                  <QrCode size={18} className="text-slate-400" />
                 </div>
-                <div className="flex items-center gap-4 mb-4">
-                  <label className="flex items-center gap-1.5 text-sm">
-                    <input type="radio" checked={status === "Pass"} onChange={() => setStatus("Pass")} />
-                    Pass
+                <div className="flex gap-4 mb-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      checked={scanStatus === "Pass"}
+                      onChange={() => setScanStatus("Pass")}
+                    />
+                    <span className="text-green-600 font-medium">Pass</span>
                   </label>
-                  <label className="flex items-center gap-1.5 text-sm">
-                    <input type="radio" checked={status === "Fail"} onChange={() => setStatus("Fail")} />
-                    Fail
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      checked={scanStatus === "Fail"}
+                      onChange={() => setScanStatus("Fail")}
+                    />
+                    <span className="text-red-600 font-medium">Fail</span>
                   </label>
                 </div>
                 <button
                   type="submit"
-                  disabled={submitting || !serialId.trim()}
-                  className="w-full bg-purple-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
+                  className="bg-purple-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-purple-700"
                 >
-                  {submitting ? "Submitting..." : "Submit Scan"}
+                  Submit Scan
                 </button>
               </form>
             </div>
 
             {/* Scan log */}
-            <div className="bg-white rounded-xl shadow-sm border p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium">Scan Log</h3>
-                <Link
-                  to={`/operator/scan/${jobOrder.jobOrderNo}/logs`}
-                  className="text-xs text-purple-600 hover:underline"
-                >
-                  View All
-                </Link>
-              </div>
-              {recentScans.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-8">No scans yet.</p>
-              ) : (
+            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+              <div className="px-5 py-3 border-b font-medium text-sm">Scan Log</div>
+              <div className="max-h-80 overflow-y-auto">
                 <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-slate-400 text-xs">
-                      <th className="pb-2">Serial ID</th>
-                      <th className="pb-2">Time</th>
-                      <th className="pb-2">Status</th>
+                  <thead className="bg-slate-50 text-left sticky top-0">
+                    <tr>
+                      <th className="px-4 py-2">Serial ID</th>
+                      <th className="px-4 py-2">Time</th>
+                      <th className="px-4 py-2">Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {recentScans.map((log) => (
-                      <tr key={log._id} className="border-t">
-                        <td className="py-2">{log.serialId}</td>
-                        <td className="py-2 text-slate-500">{new Date(log.createdAt).toLocaleString()}</td>
-                        <td className="py-2">
-                          <span className={log.status === "Pass" ? "text-green-600" : "text-red-600"}>
-                            {log.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                    {logs.length === 0 ? (
+                      <tr><td colSpan="3" className="px-4 py-6 text-center text-slate-400">No scans yet.</td></tr>
+                    ) : (
+                      logs.map((log) => (
+                        <tr key={log._id} className="border-t">
+                          <td className="px-4 py-2">{log.serialId}</td>
+                          <td className="px-4 py-2 text-slate-400">
+                            {new Date(log.createdAt).toLocaleTimeString()}
+                          </td>
+                          <td className="px-4 py-2">
+                            <span
+                              className={`px-2 py-0.5 rounded text-xs ${
+                                log.status === "Pass"
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-red-100 text-red-700"
+                              }`}
+                            >
+                              {log.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
-              )}
+              </div>
             </div>
           </div>
         </>
