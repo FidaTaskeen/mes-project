@@ -19,7 +19,7 @@ app.use('/api/boms', require('./routes/bomRoutes'));
 app.use('/api/routings', require('./routes/routingRoutes'));
 app.use('/api/joborders', require('./routes/jobOrderRoutes'));
 app.use('/api/production-entries', require('./routes/productionEntryRoutes'));
-app.use('/api/scan-logs', require('./routes/scanLogRoutes'));
+app.use('/api/scan-logs', require('./routes/scanLogs'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/reports', require('./routes/reportRoutes'));
 app.use('/api/audit-logs', require('./routes/auditLogRoutes'));
