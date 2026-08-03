@@ -234,9 +234,11 @@ exports.getProductionMonitoring = async (req, res) => {
   }
 };
 
-// @route  GET /api/joborders/my-queue  (Operator: job orders waiting at their assigned operation)
+// @route  GET /api/joborders/my-queue?operationId=<id>  (optional filter)
 exports.getMyQueue = async (req, res) => {
   try {
+    const { operationId } = req.query;
+
     const currentUser = await User.findById(req.user.id).select('assignedOperations');
     const assignedOps = currentUser?.assignedOperations || [];
 
@@ -258,7 +260,9 @@ exports.getMyQueue = async (req, res) => {
       .filter((jo) => {
         const currentStep = jo.routing?.steps?.[jo.currentOperationIndex];
         const currentOpId = currentStep?.operation?._id?.toString();
-        return currentOpId && assignedOpIds.includes(currentOpId);
+        if (!currentOpId || !assignedOpIds.includes(currentOpId)) return false;
+        if (operationId && currentOpId !== operationId) return false;
+        return true;
       })
       .map((jo) => {
         const currentStep = jo.routing.steps[jo.currentOperationIndex];
@@ -269,6 +273,7 @@ exports.getMyQueue = async (req, res) => {
           quantity: jo.quantity,
           remainingQuantity: jo.quantity - (jo.completedQuantity + jo.rejectQuantity),
           currentOperation: currentStep.operation,
+          status: jo.status,
           dueDate: jo.dueDate,
         };
       });
