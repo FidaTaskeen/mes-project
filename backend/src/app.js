@@ -25,5 +25,6 @@ app.use('/api/reports', require('./routes/reportRoutes'));
 app.use('/api/audit-logs', require('./routes/auditLogRoutes'));
 app.use('/api/settings', require('./routes/settingsRoutes'));
 app.use('/api/backup', require('./routes/backupRoutes'));
+app.use('/api/scanlogs', require('./routes/scanLogRoutes'));
 
 module.exports = app;
