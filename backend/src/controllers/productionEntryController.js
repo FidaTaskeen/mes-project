@@ -27,7 +27,6 @@ exports.scanJobOrder = async (req, res) => {
       return res.status(400).json({ message: 'No more operations remaining for this job order.' });
     }
 
-    // Restrict operators to only their assigned operations
     if (req.user.role === 'operator') {
       const user = await User.findById(req.user.id).select('assignedOperations');
       const allowedIds = (user.assignedOperations || []).map((id) => String(id));
@@ -199,7 +198,6 @@ exports.getMyPerformance = async (req, res) => {
 };
 
 // @route  GET /api/production-entries/today-summary
-// Used for the Operator Dashboard: today's target, completed qty, reject qty
 exports.getTodaySummary = async (req, res) => {
   try {
     const startOfDay = new Date();
@@ -215,8 +213,6 @@ exports.getTodaySummary = async (req, res) => {
     const completedQty = todaysEntries.reduce((sum, e) => sum + e.goodQty, 0);
     const rejectQty = todaysEntries.reduce((sum, e) => sum + e.rejectQty, 0);
 
-    // Target: total remaining quantity across active job orders currently
-    // sitting at an operation this operator is assigned to
     const user = await User.findById(req.user.id).select('assignedOperations');
     const allowedIds = (user.assignedOperations || []).map((id) => String(id));
 
@@ -229,8 +225,9 @@ exports.getTodaySummary = async (req, res) => {
 
     let target = 0;
     activeJobOrders.forEach((jo) => {
+      if (!jo.routing || !jo.routing.steps) return;
       const step = jo.routing.steps[jo.currentOperationIndex];
-      if (step && allowedIds.includes(String(step.operation._id))) {
+      if (step && step.operation && allowedIds.includes(String(step.operation._id))) {
         target += jo.quantity - jo.completedQuantity - jo.rejectQuantity;
       }
     });
@@ -244,6 +241,56 @@ exports.getTodaySummary = async (req, res) => {
     });
   } catch (err) {
     console.error('Today summary error:', err.message);
+    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+  }
+};
+
+// @route  GET /api/joborders/my-queue
+// Job orders currently waiting at an operation this operator is assigned to
+exports.getMyQueue = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('assignedOperations');
+    const allowedIds = (user.assignedOperations || []).map((id) => String(id));
+
+    if (allowedIds.length === 0) {
+      return res.status(200).json({ queue: [] });
+    }
+
+    const activeJobOrders = await JobOrder.find({
+      status: { $in: ['Planned', 'Released', 'In Progress'] },
+    })
+      .populate('item', 'itemCode name')
+      .populate({
+        path: 'routing',
+        populate: { path: 'steps.operation', select: 'operationCode operationName workCenter' },
+      });
+
+    const queue = [];
+    activeJobOrders.forEach((jo) => {
+      if (!jo.routing || !jo.routing.steps) return;
+      const step = jo.routing.steps[jo.currentOperationIndex];
+      if (!step || !step.operation) return;
+
+      const stepOpId = String(step.operation._id || step.operation);
+
+      if (allowedIds.includes(stepOpId)) {
+        queue.push({
+          jobOrderId: jo._id,
+          jobOrderNo: jo.jobOrderNo,
+          item: jo.item,
+          quantity: jo.quantity,
+          completedQuantity: jo.completedQuantity,
+          rejectQuantity: jo.rejectQuantity,
+          remainingQuantity: jo.quantity - jo.completedQuantity - jo.rejectQuantity,
+          currentOperation: step.operation,
+          dueDate: jo.dueDate,
+        });
+      }
+    });
+
+    res.status(200).json({ queue });
+  } catch (err) {
+    console.error('My queue error:', err.message);
     res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
 };
