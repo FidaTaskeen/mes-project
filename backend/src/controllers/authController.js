@@ -95,7 +95,9 @@ exports.login = async (req, res) => {
 // @route  GET /api/auth/me  (get current logged-in user)
 exports.getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
+    const user = await User.findById(req.user.id)
+      .select('-password')
+      .populate('assignedOperations', 'operationCode operationName');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }

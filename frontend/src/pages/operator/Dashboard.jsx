@@ -46,10 +46,13 @@ export default function OperatorDashboard() {
     loadData();
   }, []);
 
-  const filteredOps = assignedOperations.filter((op) =>
-    op.operationName.toLowerCase().includes(search.toLowerCase()) ||
-    op.operationCode.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredOps = assignedOperations.filter((op) => {
+    if (!op || typeof op !== "object") return false;
+    const name = (op.operationName || "").toLowerCase();
+    const code = (op.operationCode || "").toLowerCase();
+    const q = search.toLowerCase();
+    return name.includes(q) || code.includes(q);
+  });
 
   const activeOrders = queue.length;
   const holdOrders = queue.filter((q) => {
