@@ -19,6 +19,7 @@ import AuditLogs from "./pages/admin/AuditLogs";
 import BackupRestore from "./pages/admin/BackupRestore";
 import Reports from "./pages/supervisor/Reports";
 import ScanJobOrder from "./pages/operator/ScanJobOrder";
+import ScanLogHistory from "./pages/operator/ScanLogHistory";
 import MyOperations from "./pages/operator/MyOperations";
 import ProductionEntry from "./pages/operator/ProductionEntry";
 import ProductionHistory from "./pages/operator/ProductionHistory";
@@ -180,6 +181,14 @@ export default function App() {
             element={
               <ProtectedRoute allowedRoles={["operator"]}>
                 <ScanJobOrder />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/operator/scan/:jobOrderNo/logs"
+            element={
+              <ProtectedRoute allowedRoles={["operator"]}>
+                <ScanLogHistory />
               </ProtectedRoute>
             }
           />
