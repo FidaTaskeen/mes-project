@@ -34,6 +34,10 @@ export default function ScanJobOrder() {
   const [scanError, setScanError] = useState("");
   const inputRef = useRef(null);
 
+  const [showAllLogs, setShowAllLogs] = useState(false);
+  const [allLogsData, setAllLogsData] = useState([]);
+  const [allLogsLoading, setAllLogsLoading] = useState(false);
+
   const loadJobOrderStatus = async (id) => {
     setLoading(true);
     setError("");
@@ -53,6 +57,18 @@ export default function ScanJobOrder() {
     }
   };
 
+  const loadAllLogs = async () => {
+    setAllLogsLoading(true);
+    try {
+      const res = await axiosInstance.get(`/scanlogs?jobOrder=${jobOrderId}&limit=1000`);
+      setAllLogsData(res.data.logs || []);
+    } catch (err) {
+      setAllLogsData([]);
+    } finally {
+      setAllLogsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (paramJobOrderId) {
       loadJobOrderStatus(paramJobOrderId);
@@ -65,6 +81,11 @@ export default function ScanJobOrder() {
   useEffect(() => {
     if (inputRef.current) inputRef.current.focus();
   }, [jobOrderId]);
+
+  useEffect(() => {
+    if (showAllLogs) loadAllLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showAllLogs]);
 
   const handleManualSearch = async (jobOrderNo) => {
     const no = jobOrderNo || jobOrderNoInput;
@@ -231,7 +252,15 @@ export default function ScanJobOrder() {
 
             {/* Scan log */}
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-              <div className="px-5 py-3 border-b font-medium text-sm">Scan Log</div>
+              <div className="px-5 py-3 border-b font-medium text-sm flex justify-between items-center">
+                <span>Scan Log</span>
+                <button
+                  onClick={() => setShowAllLogs(true)}
+                  className="text-purple-600 text-xs font-medium hover:underline"
+                >
+                  View All
+                </button>
+              </div>
               <div className="max-h-80 overflow-y-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 text-left sticky top-0">
@@ -271,6 +300,55 @@ export default function ScanJobOrder() {
             </div>
           </div>
         </>
+      )}
+
+      {showAllLogs && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[85vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold">All Scans — {status?.jobOrder?.jobOrderNo}</h2>
+              <button onClick={() => setShowAllLogs(false)} className="text-slate-400 hover:text-slate-600">
+                ✕
+              </button>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-slate-100 text-left sticky top-0">
+                <tr>
+                  <th className="px-4 py-2">Serial ID</th>
+                  <th className="px-4 py-2">Time</th>
+                  <th className="px-4 py-2">Status</th>
+                  <th className="px-4 py-2">Scanned By</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allLogsLoading ? (
+                  <tr><td colSpan="4" className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
+                ) : allLogsData.length === 0 ? (
+                  <tr><td colSpan="4" className="px-4 py-6 text-center text-slate-400">No scans yet.</td></tr>
+                ) : (
+                  allLogsData.map((log) => (
+                    <tr key={log._id} className="border-t">
+                      <td className="px-4 py-2">{log.serialId}</td>
+                      <td className="px-4 py-2 text-slate-400">
+                        {new Date(log.createdAt).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2">
+                        <span
+                          className={`px-2 py-0.5 rounded text-xs ${
+                            log.status === "Pass" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          {log.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2">{log.scannedBy?.name || "—"}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </Layout>
   );
