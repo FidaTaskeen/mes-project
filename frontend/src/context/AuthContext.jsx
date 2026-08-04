@@ -10,7 +10,7 @@ const [user, setUser] = useState(() => {
   });
 
   const login = async (email, password) => {
-    const res = await axiosInstance.post("/auth/login", { email, password });
+    const res = await axiosInstance.post("/auth/login", { userId: email, password });
     const { token, user } = res.data;
 
     localStorage.setItem("mes_token", token);

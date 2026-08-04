@@ -13,9 +13,13 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    if (!email.trim() || !password.trim()) {
+      setError("Please type your User ID and password (autofill sometimes doesn't register — try typing manually).");
+      return;
+    }
     setLoading(true);
     try {
-      const user = await login(email, password);
+      const user = await login(email.trim(), password);
      if (user.role === "admin") navigate("/admin/dashboard");
       else if (user.role === "supervisor") navigate("/supervisor/dashboard");
       else navigate("/operator/dashboard");
@@ -45,6 +49,8 @@ export default function Login() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
+          autoComplete="off"
+          name="mes-user-id"
           className="w-full border rounded px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 
@@ -54,6 +60,8 @@ export default function Login() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
+          autoComplete="new-password"
+          name="mes-password"
           className="w-full border rounded px-3 py-2 mb-6 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 
