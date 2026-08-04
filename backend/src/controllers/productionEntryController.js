@@ -2,7 +2,6 @@ const ProductionEntry = require('../models/ProductionEntry');
 const JobOrder = require('../models/JobOrder');
 const User = require('../models/User');
 
-// @route  GET /api/joborders/scan/:jobOrderNo
 exports.scanJobOrder = async (req, res) => {
   try {
     const jobOrder = await JobOrder.findOne({
@@ -20,6 +19,10 @@ exports.scanJobOrder = async (req, res) => {
 
     if (jobOrder.status === 'Completed') {
       return res.status(400).json({ message: 'This job order is already completed.' });
+    }
+
+    if (jobOrder.status === 'On Hold') {
+      return res.status(400).json({ message: 'This job order is currently on hold.' });
     }
 
     const currentStep = jobOrder.routing.steps[jobOrder.currentOperationIndex];
@@ -48,7 +51,6 @@ exports.scanJobOrder = async (req, res) => {
   }
 };
 
-// @route  POST /api/production-entries
 exports.createEntry = async (req, res) => {
   try {
     const { jobOrder: jobOrderId, goodQty, rejectQty, remarks } = req.body;
@@ -67,6 +69,10 @@ exports.createEntry = async (req, res) => {
 
     if (jobOrder.status === 'Completed') {
       return res.status(400).json({ message: 'This job order is already completed.' });
+    }
+
+    if (jobOrder.status === 'On Hold') {
+      return res.status(400).json({ message: 'This job order is currently on hold.' });
     }
 
     const currentStep = jobOrder.routing.steps[jobOrder.currentOperationIndex];
@@ -135,7 +141,6 @@ exports.createEntry = async (req, res) => {
   }
 };
 
-// @route  GET /api/production-entries
 exports.getEntries = async (req, res) => {
   try {
     const { jobOrder, operator, page = 1, limit = 20 } = req.query;
@@ -170,7 +175,6 @@ exports.getEntries = async (req, res) => {
   }
 };
 
-// @route  GET /api/production-entries/my-performance
 exports.getMyPerformance = async (req, res) => {
   try {
     const entries = await ProductionEntry.find({ operator: req.user.id });
@@ -197,7 +201,6 @@ exports.getMyPerformance = async (req, res) => {
   }
 };
 
-// @route  GET /api/production-entries/today-summary
 exports.getTodaySummary = async (req, res) => {
   try {
     const startOfDay = new Date();
@@ -245,8 +248,6 @@ exports.getTodaySummary = async (req, res) => {
   }
 };
 
-// @route  GET /api/joborders/my-queue
-// Job orders currently waiting at an operation this operator is assigned to
 exports.getMyQueue = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('assignedOperations');

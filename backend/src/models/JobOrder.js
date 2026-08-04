@@ -49,12 +49,12 @@ const jobOrderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Planned', 'Released', 'In Progress', 'Hold', 'Completed'],
+      enum: ['Planned', 'Released', 'On Hold', 'In Progress', 'Completed'],
       default: 'Planned',
     },
     currentOperationIndex: {
       type: Number,
-      default: 0, // tracks which step in the routing the job is currently on
+      default: 0,
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
