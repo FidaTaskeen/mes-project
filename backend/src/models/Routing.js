@@ -1,45 +1,112 @@
 const mongoose = require('mongoose');
 
-const routingStepSchema = new mongoose.Schema(
+const routingLineSchema = new mongoose.Schema(
   {
-    operation: { type: mongoose.Schema.Types.ObjectId, ref: 'Operation', required: true },
-    sequenceNo: { type: Number, required: true, min: 1 },
-    standardTime: { type: Number, required: true, min: 0 },
-    stage: { type: String, enum: ['Start', 'Middle', 'End'], default: 'Middle' },
-    type: { type: String, trim: true, default: '' },
-    scan: { type: String, trim: true, default: '' },
-    storageLocation: { type: String, trim: true, default: '' },
+    sequence: {
+      type: Number,
+      required: true,
+    },
+
+    operationCode: {
+      type: String,
+      required: true,
+      uppercase: true,
+      trim: true,
+    },
+
+    operationName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    stage: {
+      type: String,
+      enum: ['Start', 'Middle', 'End'],
+      default: 'Middle',
+    },
+
+    previousOperation: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
+    type: {
+      type: String,
+      enum: ['Automatic', 'Manual', 'Inspection', 'Testing'],
+      default: 'Manual',
+    },
+
+    scan: {
+      type: String,
+      default: 'Serial No',
+      trim: true,
+    },
   },
   { _id: false }
 );
 
 const routingSchema = new mongoose.Schema(
   {
-    routingCode: { type: String, required: true, unique: true, trim: true, uppercase: true },
-    item: { type: mongoose.Schema.Types.ObjectId, ref: 'Item', required: true },
-    bom: { type: mongoose.Schema.Types.ObjectId, ref: 'BOM', required: true },
-    version: { type: String, default: 'Version 1', trim: true },
-    steps: {
-      type: [routingStepSchema],
-      validate: { validator: (a) => a.length > 0, message: 'Routing must have at least one operation step' },
+    routingNo: {
+      type: String,
+      required: true,
+      unique: true,
+      uppercase: true,
+      trim: true,
     },
-    status: { type: String, enum: ['Active', 'Draft', 'Inactive'], default: 'Active' },
-    plant: { type: String, trim: true, default: '' },
-    shopfloor: { type: String, trim: true, default: '' },
-    description: { type: String, trim: true, default: '' },
-    inputItemDescription: { type: String, trim: true, default: '' },
-    validFrom: { type: Date },
-    validTo: { type: Date },
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+
+    item: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Item',
+      required: true,
+    },
+
+    bom: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'BOM',
+      required: true,
+    },
+
+    version: {
+      type: String,
+      default: 'Version 1',
+      trim: true,
+    },
+
+    status: {
+      type: String,
+      enum: ['Active', 'Inactive'],
+      default: 'Active',
+    },
+
+    routingLines: {
+      type: [routingLineSchema],
+      validate: {
+        validator: function (v) {
+          return v.length > 0;
+        },
+        message: 'At least one routing operation is required',
+      },
+    },
+
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
   },
   { timestamps: true }
 );
 
-routingSchema.pre('save', function () {
-  const seqs = this.steps.map((s) => s.sequenceNo);
-  if (new Set(seqs).size !== seqs.length) {
-    throw new Error('Sequence numbers must be unique within a routing');
+routingSchema.pre('save', function (next) {
+  const seq = this.routingLines.map((r) => r.sequence);
+
+  if (new Set(seq).size !== seq.length) {
+    return next(new Error('Sequence numbers must be unique'));
   }
+
+  next();
 });
 
 module.exports = mongoose.model('Routing', routingSchema);

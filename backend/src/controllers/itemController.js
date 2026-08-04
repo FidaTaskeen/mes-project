@@ -1,139 +1,198 @@
 const Item = require('../models/Item');
 const logAction = require('../utils/logAction');
 
-// @route  POST /api/items
+// Create Item
 exports.createItem = async (req, res) => {
   try {
-    const { itemCode, name, description, unitOfMeasure, itemType, status } = req.body;
+    const { itemNo, itemName, category, uom, description, status } = req.body;
 
-    if (!itemCode || !name || !unitOfMeasure || !itemType) {
+    if (!itemNo || !itemName || !category || !uom) {
       return res.status(400).json({
-        message: 'Item code, name, unit of measure, and item type are required',
+        message: 'Item No, Item Name, Category, and UOM are required',
       });
     }
 
-    const existing = await Item.findOne({ itemCode: itemCode.toUpperCase() });
+    const existing = await Item.findOne({
+      itemNo: itemNo.toUpperCase(),
+    });
+
     if (existing) {
-      return res.status(409).json({ message: 'An item with this code already exists' });
+      return res.status(409).json({
+        message: 'Item No already exists',
+      });
     }
 
     const item = await Item.create({
-      itemCode,
-      name,
+      itemNo: itemNo.toUpperCase(),
+      itemName,
+      category,
+      uom,
       description,
-      unitOfMeasure,
-      itemType,
-      status,
+      status: status || 'Active',
       createdBy: req.user.id,
     });
 
-    await logAction(req.user.id, 'CREATE', 'Item', `Created item ${item.itemCode}`, item._id);
+    await logAction(
+      req.user.id,
+      'CREATE',
+      'Item',
+      `Created Item ${item.itemNo}`,
+      item._id
+    );
 
-    res.status(201).json({ message: 'Item created successfully', item });
+    res.status(201).json({
+      message: 'Item created successfully',
+      item,
+    });
   } catch (err) {
     console.error('Create item error:', err.message);
-    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+    res.status(500).json({
+      message: 'Something went wrong',
+    });
   }
 };
 
-// @route  GET /api/items  (supports ?search=&itemType=&status=&page=&limit=)
+// Get Items
 exports.getItems = async (req, res) => {
   try {
-    const { search, itemType, status, page = 1, limit = 20 } = req.query;
+    const { search, category, status } = req.query;
 
     const filter = {};
+
     if (search) {
       filter.$or = [
-        { itemCode: { $regex: search, $options: 'i' } },
-        { name: { $regex: search, $options: 'i' } },
+        { itemNo: { $regex: search, $options: 'i' } },
+        { itemName: { $regex: search, $options: 'i' } },
       ];
     }
-    if (itemType) filter.itemType = itemType;
-    if (status) filter.status = status;
 
-    const items = await Item.find(filter)
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(Number(limit));
+    if (category) {
+      filter.category = category;
+    }
 
-    const total = await Item.countDocuments(filter);
+    if (status) {
+      filter.status = status;
+    }
+
+    const items = await Item.find(filter).sort({
+      itemNo: 1,
+    });
 
     res.status(200).json({
       items,
-      total,
-      page: Number(page),
-      totalPages: Math.ceil(total / limit),
     });
   } catch (err) {
     console.error('Get items error:', err.message);
-    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+    res.status(500).json({
+      message: 'Something went wrong',
+    });
   }
 };
 
-// @route  GET /api/items/:id
+// Get Single Item
 exports.getItemById = async (req, res) => {
   try {
     const item = await Item.findById(req.params.id);
+
     if (!item) {
-      return res.status(404).json({ message: 'Item not found' });
+      return res.status(404).json({
+        message: 'Item not found',
+      });
     }
-    res.status(200).json({ item });
+
+    res.status(200).json({
+      item,
+    });
   } catch (err) {
     console.error('Get item error:', err.message);
-    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+    res.status(500).json({
+      message: 'Something went wrong',
+    });
   }
 };
 
-// @route  PUT /api/items/:id
+// Update Item
 exports.updateItem = async (req, res) => {
   try {
-    const { itemCode, name, description, unitOfMeasure, itemType, status } = req.body;
+    const { itemNo, itemName, category, uom, description, status } = req.body;
 
     const item = await Item.findById(req.params.id);
+
     if (!item) {
-      return res.status(404).json({ message: 'Item not found' });
+      return res.status(404).json({
+        message: 'Item not found',
+      });
     }
 
-    if (itemCode && itemCode.toUpperCase() !== item.itemCode) {
-      const existing = await Item.findOne({ itemCode: itemCode.toUpperCase() });
+    if (itemNo && itemNo.toUpperCase() !== item.itemNo) {
+      const existing = await Item.findOne({
+        itemNo: itemNo.toUpperCase(),
+      });
+
       if (existing) {
-        return res.status(409).json({ message: 'Another item already uses this code' });
+        return res.status(409).json({
+          message: 'Another item already uses this Item No',
+        });
       }
     }
 
-    item.itemCode = itemCode ?? item.itemCode;
-    item.name = name ?? item.name;
-    item.description = description ?? item.description;
-    item.unitOfMeasure = unitOfMeasure ?? item.unitOfMeasure;
-    item.itemType = itemType ?? item.itemType;
-    item.status = status ?? item.status;
+    item.itemNo = itemNo ? itemNo.toUpperCase() : item.itemNo;
+    item.itemName = itemName || item.itemName;
+    item.category = category || item.category;
+    item.uom = uom || item.uom;
+    item.description = description || item.description;
+    item.status = status || item.status;
 
     await item.save();
 
-    await logAction(req.user.id, 'UPDATE', 'Item', `Updated item ${item.itemCode}`, item._id);
+    await logAction(
+      req.user.id,
+      'UPDATE',
+      'Item',
+      `Updated Item ${item.itemNo}`,
+      item._id
+    );
 
-    res.status(200).json({ message: 'Item updated successfully', item });
+    res.status(200).json({
+      message: 'Item updated successfully',
+      item,
+    });
   } catch (err) {
     console.error('Update item error:', err.message);
-    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+    res.status(500).json({
+      message: 'Something went wrong',
+    });
   }
 };
 
-// @route  DELETE /api/items/:id
+// Delete Item
 exports.deleteItem = async (req, res) => {
   try {
     const item = await Item.findById(req.params.id);
+
     if (!item) {
-      return res.status(404).json({ message: 'Item not found' });
+      return res.status(404).json({
+        message: 'Item not found',
+      });
     }
 
     await item.deleteOne();
 
-    await logAction(req.user.id, 'DELETE', 'Item', `Deleted item ${item.itemCode}`, item._id);
+    await logAction(
+      req.user.id,
+      'DELETE',
+      'Item',
+      `Deleted Item ${item.itemNo}`,
+      item._id
+    );
 
-    res.status(200).json({ message: 'Item deleted successfully' });
+    res.status(200).json({
+      message: 'Item deleted successfully',
+    });
   } catch (err) {
     console.error('Delete item error:', err.message);
-    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+    res.status(500).json({
+      message: 'Something went wrong',
+    });
   }
 };

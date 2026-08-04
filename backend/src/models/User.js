@@ -2,47 +2,42 @@ const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: [true, 'Name is required'],
-      trim: true,
-    },
     userId: {
       type: String,
-      trim: true,
-      lowercase: true,
+      required: true,
       unique: true,
-      sparse: true,
+      uppercase: true,
+      trim: true,
     },
-    email: {
+
+    name: {
       type: String,
-      required: [true, 'Email is required'],
-      unique: true,
-      lowercase: true,
+      required: true,
       trim: true,
-      match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email'],
     },
+
     password: {
       type: String,
-      required: [true, 'Password is required'],
-      minlength: [6, 'Password must be at least 6 characters'],
+      required: true,
+      minlength: 6,
     },
+
     role: {
       type: String,
       enum: ['admin', 'supervisor', 'operator'],
-      default: 'operator',
+      required: true,
     },
+
+    department: {
+      type: String,
+      default: '',
+    },
+
     status: {
       type: String,
       enum: ['active', 'inactive'],
       default: 'active',
     },
-    assignedOperations: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Operation',
-      },
-    ],
   },
   { timestamps: true }
 );
