@@ -39,7 +39,7 @@ export default function Login() {
           <div className="bg-red-50 text-red-600 text-sm p-2 rounded mb-4">{error}</div>
         )}
 
-        <label className="block text-sm font-medium mb-1">Email</label>
+        <label className="block text-sm font-medium mb-1">User ID</label>
         <input
           type="email"
           value={email}

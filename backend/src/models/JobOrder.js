@@ -49,7 +49,7 @@ const jobOrderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Planned', 'Released', 'In Progress', 'Completed'],
+      enum: ['Planned', 'Released', 'In Progress', 'Hold', 'Completed'],
       default: 'Planned',
     },
     currentOperationIndex: {
