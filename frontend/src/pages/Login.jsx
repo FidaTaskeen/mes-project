@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
+  const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -13,14 +13,10 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    if (!email.trim() || !password.trim()) {
-      setError("Please type your User ID and password (autofill sometimes doesn't register — try typing manually).");
-      return;
-    }
     setLoading(true);
     try {
-      const user = await login(email.trim(), password);
-     if (user.role === "admin") navigate("/admin/dashboard");
+      const user = await login(userId, password);
+      if (user.role === "admin") navigate("/admin/dashboard");
       else if (user.role === "supervisor") navigate("/supervisor/dashboard");
       else navigate("/operator/dashboard");
     } catch (err) {
@@ -38,33 +34,26 @@ export default function Login() {
       >
         <h1 className="text-2xl font-bold text-center mb-1">MES Portal</h1>
         <p className="text-sm text-center text-slate-500 mb-6">Sign in to continue</p>
-
         {error && (
           <div className="bg-red-50 text-red-600 text-sm p-2 rounded mb-4">{error}</div>
         )}
-
         <label className="block text-sm font-medium mb-1">User ID</label>
         <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          type="text"
+          value={userId}
+          onChange={(e) => setUserId(e.target.value)}
+          placeholder="e.g. fida1234"
           required
-          autoComplete="off"
-          name="mes-user-id"
           className="w-full border rounded px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-
         <label className="block text-sm font-medium mb-1">Password</label>
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          autoComplete="new-password"
-          name="mes-password"
           className="w-full border rounded px-3 py-2 mb-6 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-
         <button
           type="submit"
           disabled={loading}

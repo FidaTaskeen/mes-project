@@ -4,15 +4,14 @@ import axiosInstance from "../api/axiosInstance";
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-const [user, setUser] = useState(() => {
+  const [user, setUser] = useState(() => {
     const saved = localStorage.getItem("mes_user");
     return saved ? JSON.parse(saved) : null;
   });
 
-  const login = async (email, password) => {
-    const res = await axiosInstance.post("/auth/login", { userId: email, password });
+  const login = async (userId, password) => {
+    const res = await axiosInstance.post("/auth/login", { userId, password });
     const { token, user } = res.data;
-
     localStorage.setItem("mes_token", token);
     localStorage.setItem("mes_user", JSON.stringify(user));
     setUser(user);

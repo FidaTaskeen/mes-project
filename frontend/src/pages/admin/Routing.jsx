@@ -19,7 +19,7 @@ const navGroups = [
 
 const emptyForm = {
   routingCode: "",
-  item: "",
+  bom: "",
   version: "Version 1",
   status: "Active",
   description: "",
@@ -28,7 +28,7 @@ const emptyForm = {
 
 export default function Routing() {
   const [routings, setRoutings] = useState([]);
-  const [items, setItems] = useState([]);
+  const [boms, setBoms] = useState([]);
   const [operations, setOperations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -50,13 +50,13 @@ export default function Routing() {
       params.set("status", tab);
       params.set("limit", "100");
 
-      const [routingsRes, itemsRes, opsRes] = await Promise.all([
+      const [routingsRes, bomsRes, opsRes] = await Promise.all([
         axiosInstance.get(`/routings?${params.toString()}`),
-        axiosInstance.get("/items?limit=100"),
+        axiosInstance.get("/boms?limit=100"),
         axiosInstance.get("/operations?limit=100"),
       ]);
       setRoutings(routingsRes.data.routings || []);
-      setItems(itemsRes.data.items || []);
+      setBoms(bomsRes.data.boms || []);
       setOperations(opsRes.data.operations || []);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load data");
@@ -80,7 +80,7 @@ export default function Routing() {
     setEditingRouting(routing);
     setForm({
       routingCode: routing.routingCode,
-      item: routing.item?._id || routing.item,
+      bom: routing.bom?._id || routing.bom || "",
       version: routing.version || "Version 1",
       status: routing.status,
       description: routing.description || "",
@@ -138,18 +138,17 @@ export default function Routing() {
     }
   };
 
-  const itemLabel = (item) => {
-    if (!item) return "—";
-    if (typeof item === "object") return item.itemCode;
-    const found = items.find((i) => i._id === item);
-    return found ? found.itemCode : "—";
+  const bomLabel = (bom) => {
+    if (!bom) return "—";
+    if (typeof bom === "object") return bom.bomCode;
+    const found = boms.find((b) => b._id === bom);
+    return found ? found.bomCode : "—";
   };
 
   const itemName = (item) => {
     if (!item) return "—";
-    if (typeof item === "object") return item.name;
-    const found = items.find((i) => i._id === item);
-    return found ? found.name : "—";
+    if (typeof item === "object") return `${item.itemCode} - ${item.name}`;
+    return "—";
   };
 
   const tabs = ["Active", "Draft", "Inactive"];
@@ -159,7 +158,7 @@ export default function Routing() {
       <div className="flex justify-between items-center mb-4">
         <div>
           <h1 className="text-2xl font-bold">Routing</h1>
-          <p className="text-slate-500 text-sm">Masters &gt; Routing</p>
+          <p className="text-slate-500 text-sm">Masters &gt; Routing (built from a BOM)</p>
         </div>
         <button
           onClick={openAddForm}
@@ -171,7 +170,6 @@ export default function Routing() {
 
       {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>}
 
-      {/* Filter bar */}
       <div className="bg-white rounded-xl shadow-sm border p-4 mb-4">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
           <div>
@@ -199,7 +197,6 @@ export default function Routing() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 mb-3">
         {tabs.map((t) => (
           <button
@@ -214,14 +211,13 @@ export default function Routing() {
         ))}
       </div>
 
-      {/* Data table */}
       <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
         <table className="w-full text-sm whitespace-nowrap">
           <thead className="bg-slate-100 text-left">
             <tr>
               <th className="px-4 py-3">Routing Code</th>
-              <th className="px-4 py-3">Item No / Name</th>
-              <th className="px-4 py-3">Description</th>
+              <th className="px-4 py-3">BOM</th>
+              <th className="px-4 py-3">Item</th>
               <th className="px-4 py-3">Version</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Created On</th>
@@ -237,11 +233,8 @@ export default function Routing() {
               routings.map((routing) => (
                 <tr key={routing._id} className="border-t hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium">{routing.routingCode}</td>
-                  <td className="px-4 py-3">
-                    {itemLabel(routing.item)}
-                    <div className="text-xs text-slate-400">{itemName(routing.item)}</div>
-                  </td>
-                  <td className="px-4 py-3">{routing.description || "—"}</td>
+                  <td className="px-4 py-3">{bomLabel(routing.bom)}</td>
+                  <td className="px-4 py-3">{itemName(routing.item)}</td>
                   <td className="px-4 py-3">{routing.version}</td>
                   <td className="px-4 py-3">
                     <span
@@ -295,7 +288,9 @@ export default function Routing() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-bold mb-1">{viewingRouting.routingCode}</h2>
-            <p className="text-sm text-slate-500 mb-4">{itemName(viewingRouting.item)}</p>
+            <p className="text-sm text-slate-500 mb-4">
+              BOM: {bomLabel(viewingRouting.bom)} • Item: {itemName(viewingRouting.item)}
+            </p>
             <div className="border-t pt-3 space-y-2">
               {viewingRouting.steps
                 .slice()
@@ -336,16 +331,18 @@ export default function Routing() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Item</label>
+                <label className="block text-sm font-medium mb-1">BOM</label>
                 <select
-                  value={form.item}
-                  onChange={(e) => setForm({ ...form, item: e.target.value })}
+                  value={form.bom}
+                  onChange={(e) => setForm({ ...form, bom: e.target.value })}
                   required
                   className="w-full border rounded-lg px-3 py-2"
                 >
-                  <option value="">-- Select Item --</option>
-                  {items.map((item) => (
-                    <option key={item._id} value={item._id}>{item.itemCode} - {item.name}</option>
+                  <option value="">-- Select BOM --</option>
+                  {boms.map((b) => (
+                    <option key={b._id} value={b._id}>
+                      {b.bomCode} ({b.parentItem?.itemCode})
+                    </option>
                   ))}
                 </select>
               </div>

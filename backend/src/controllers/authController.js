@@ -6,11 +6,9 @@ const generateToken = (user) => {
   return jwt.sign(
     { id: user._id, role: user.role },
     process.env.JWT_SECRET
-    // no expiresIn = token never expires
   );
 };
 
-// @route  POST /api/auth/register
 exports.register = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
@@ -51,7 +49,6 @@ exports.register = async (req, res) => {
   }
 };
 
-// @route  POST /api/auth/login
 exports.login = async (req, res) => {
   try {
     const { userId, password } = req.body;
@@ -64,8 +61,9 @@ exports.login = async (req, res) => {
     const user = await User.findOne({
       $or: [{ userId: identifier }, { email: identifier }],
     });
+
     if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Invalid User ID or password' });
     }
 
     if (user.status === 'inactive') {
@@ -74,7 +72,7 @@ exports.login = async (req, res) => {
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Invalid User ID or password' });
     }
 
     const token = generateToken(user);
@@ -86,6 +84,7 @@ exports.login = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        userId: user.userId,
         role: user.role,
       },
     });
@@ -95,7 +94,6 @@ exports.login = async (req, res) => {
   }
 };
 
-// @route  GET /api/auth/me  (get current logged-in user)
 exports.getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
