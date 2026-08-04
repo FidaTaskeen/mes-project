@@ -17,6 +17,7 @@ const routingSchema = new mongoose.Schema(
   {
     routingCode: { type: String, required: true, unique: true, trim: true, uppercase: true },
     item: { type: mongoose.Schema.Types.ObjectId, ref: 'Item', required: true },
+    bom: { type: mongoose.Schema.Types.ObjectId, ref: 'BOM', required: true },
     version: { type: String, default: 'Version 1', trim: true },
     steps: {
       type: [routingStepSchema],

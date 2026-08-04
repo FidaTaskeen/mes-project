@@ -54,13 +54,16 @@ exports.register = async (req, res) => {
 // @route  POST /api/auth/login
 exports.login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { userId, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required' });
+    if (!userId || !password) {
+      return res.status(400).json({ message: 'User ID and password are required' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const identifier = userId.toLowerCase();
+    const user = await User.findOne({
+      $or: [{ userId: identifier }, { email: identifier }],
+    });
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }

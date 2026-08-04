@@ -10,6 +10,7 @@ exports.getUsers = async (req, res) => {
       filter.$or = [
         { name: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
+        { userId: { $regex: search, $options: 'i' } },
       ];
     }
     if (role) filter.role = role;
@@ -53,7 +54,7 @@ exports.getUserById = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    const { name, email, password, role, assignedOperations } = req.body;
+    const { name, email, userId, password, role, assignedOperations } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required' });
@@ -64,11 +65,19 @@ exports.createUser = async (req, res) => {
       return res.status(409).json({ message: 'An account with this email already exists' });
     }
 
+    if (userId) {
+      const existingUserId = await User.findOne({ userId: userId.toLowerCase() });
+      if (existingUserId) {
+        return res.status(409).json({ message: 'This User ID is already taken' });
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await User.create({
       name,
       email,
+      userId: userId ? userId.toLowerCase() : undefined,
       password: hashedPassword,
       role: role || 'operator',
       assignedOperations: assignedOperations || [],
@@ -82,6 +91,7 @@ exports.createUser = async (req, res) => {
         id: populated._id,
         name: populated.name,
         email: populated.email,
+        userId: populated.userId,
         role: populated.role,
         status: populated.status,
         assignedOperations: populated.assignedOperations,
@@ -95,7 +105,7 @@ exports.createUser = async (req, res) => {
 
 exports.updateUser = async (req, res) => {
   try {
-    const { name, email, role, status, assignedOperations } = req.body;
+    const { name, email, userId, role, status, assignedOperations } = req.body;
 
     const user = await User.findById(req.params.id);
     if (!user) {
@@ -107,6 +117,14 @@ exports.updateUser = async (req, res) => {
       if (existing) {
         return res.status(409).json({ message: 'Another account already uses this email' });
       }
+    }
+
+    if (userId && userId.toLowerCase() !== user.userId) {
+      const existingUserId = await User.findOne({ userId: userId.toLowerCase() });
+      if (existingUserId) {
+        return res.status(409).json({ message: 'This User ID is already taken' });
+      }
+      user.userId = userId.toLowerCase();
     }
 
     user.name = name ?? user.name;
@@ -126,6 +144,7 @@ exports.updateUser = async (req, res) => {
         id: populated._id,
         name: populated.name,
         email: populated.email,
+        userId: populated.userId,
         role: populated.role,
         status: populated.status,
         assignedOperations: populated.assignedOperations,

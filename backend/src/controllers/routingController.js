@@ -1,23 +1,26 @@
 const Routing = require('../models/Routing');
 const Item = require('../models/Item');
 const Operation = require('../models/Operation');
+const BOM = require('../models/BOM');
 
 exports.createRouting = async (req, res) => {
   try {
     const {
-      routingCode, item, steps, status, version,
+      routingCode, bom, steps, status, version,
       plant, shopfloor, description, inputItemDescription, validFrom, validTo,
     } = req.body;
 
-    if (!routingCode || !item || !steps || steps.length === 0) {
-      return res.status(400).json({ message: 'Routing code, item, and at least one step are required' });
+    if (!routingCode || !bom || !steps || steps.length === 0) {
+      return res.status(400).json({ message: 'Routing code, BOM, and at least one step are required' });
     }
 
     const existing = await Routing.findOne({ routingCode: routingCode.toUpperCase() });
     if (existing) return res.status(409).json({ message: 'A routing with this code already exists' });
 
-    const itemExists = await Item.findById(item);
-    if (!itemExists) return res.status(404).json({ message: 'Item not found' });
+    const bomExists = await BOM.findById(bom);
+    if (!bomExists) return res.status(404).json({ message: 'BOM not found' });
+
+    const item = bomExists.parentItem;
 
     for (const step of steps) {
       const opExists = await Operation.findById(step.operation);
@@ -25,12 +28,12 @@ exports.createRouting = async (req, res) => {
     }
 
     const routing = await Routing.create({
-      routingCode, item, steps, status, version,
+      routingCode, item, bom, steps, status, version,
       plant, shopfloor, description, inputItemDescription, validFrom, validTo,
       createdBy: req.user.id,
     });
 
-    const populated = await routing.populate(['item', 'steps.operation']);
+    const populated = await routing.populate(['item', 'bom', 'steps.operation']);
     res.status(201).json({ message: 'Routing created successfully', routing: populated });
   } catch (err) {
     console.error('Create routing error:', err.message);
@@ -40,7 +43,7 @@ exports.createRouting = async (req, res) => {
 
 exports.getRoutings = async (req, res) => {
   try {
-    const { search, status, plant, shopfloor, itemQuery, page = 1, limit = 20 } = req.query;
+    const { search, status, plant, shopfloor, page = 1, limit = 20 } = req.query;
 
     const filter = {};
     if (search) filter.routingCode = { $regex: search, $options: 'i' };
@@ -50,6 +53,7 @@ exports.getRoutings = async (req, res) => {
 
     const routings = await Routing.find(filter)
       .populate('item', 'itemCode name')
+      .populate('bom', 'bomCode')
       .populate('steps.operation', 'operationCode operationName workCenter')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
@@ -67,6 +71,7 @@ exports.getRoutingById = async (req, res) => {
   try {
     const routing = await Routing.findById(req.params.id)
       .populate('item', 'itemCode name description')
+      .populate('bom', 'bomCode')
       .populate('steps.operation', 'operationCode operationName workCenter');
     if (!routing) return res.status(404).json({ message: 'Routing not found' });
     res.status(200).json({ routing });
@@ -79,7 +84,7 @@ exports.getRoutingById = async (req, res) => {
 exports.updateRouting = async (req, res) => {
   try {
     const {
-      routingCode, item, steps, status, version,
+      routingCode, bom, steps, status, version,
       plant, shopfloor, description, inputItemDescription, validFrom, validTo,
     } = req.body;
 
@@ -91,6 +96,13 @@ exports.updateRouting = async (req, res) => {
       if (existing) return res.status(409).json({ message: 'Another routing already uses this code' });
     }
 
+    if (bom) {
+      const bomExists = await BOM.findById(bom);
+      if (!bomExists) return res.status(404).json({ message: 'BOM not found' });
+      routing.bom = bom;
+      routing.item = bomExists.parentItem;
+    }
+
     if (steps) {
       for (const step of steps) {
         const opExists = await Operation.findById(step.operation);
@@ -99,7 +111,6 @@ exports.updateRouting = async (req, res) => {
     }
 
     routing.routingCode = routingCode ?? routing.routingCode;
-    routing.item = item ?? routing.item;
     routing.steps = steps ?? routing.steps;
     routing.status = status ?? routing.status;
     routing.version = version ?? routing.version;
@@ -111,7 +122,7 @@ exports.updateRouting = async (req, res) => {
     routing.validTo = validTo ?? routing.validTo;
 
     await routing.save();
-    const populated = await routing.populate(['item', 'steps.operation']);
+    const populated = await routing.populate(['item', 'bom', 'steps.operation']);
     res.status(200).json({ message: 'Routing updated successfully', routing: populated });
   } catch (err) {
     console.error('Update routing error:', err.message);
