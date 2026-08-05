@@ -2,8 +2,6 @@ const ScanLog = require('../models/ScanLog');
 const JobOrder = require('../models/JobOrder');
 const User = require('../models/User');
 
-// @route  GET /api/scanlogs/job-order-status/:jobOrderId
-// Returns header info + Total/Pending/Completed/Balance counts, like the reference screen
 exports.getJobOrderStatus = async (req, res) => {
   try {
     const jobOrder = await JobOrder.findById(req.params.jobOrderId)
@@ -52,8 +50,6 @@ exports.getJobOrderStatus = async (req, res) => {
   }
 };
 
-// @route  POST /api/scanlogs
-// Scans one serial number as Pass or Fail, updates job order progress
 exports.addScan = async (req, res) => {
   try {
     const { jobOrder: jobOrderId, serialId, status } = req.body;
@@ -73,6 +69,9 @@ exports.addScan = async (req, res) => {
 
     if (jobOrder.status === 'Completed') {
       return res.status(400).json({ message: 'This job order is already completed.' });
+    }
+    if (jobOrder.status === 'On Hold') {
+      return res.status(400).json({ message: 'This job order is currently on hold.' });
     }
 
     const currentStep = jobOrder.routing.steps[jobOrder.currentOperationIndex];
@@ -136,14 +135,16 @@ exports.addScan = async (req, res) => {
   }
 };
 
-// @route  GET /api/scanlogs?jobOrder=:id
 exports.getScanLogs = async (req, res) => {
   try {
-    const { jobOrder, page = 1, limit = 50 } = req.query;
+    const { jobOrder, status, page = 1, limit = 50 } = req.query;
     const filter = {};
     if (jobOrder) filter.jobOrder = jobOrder;
+    if (status) filter.status = status;
 
     const logs = await ScanLog.find(filter)
+      .populate('jobOrder', 'jobOrderNo')
+      .populate('operation', 'operationCode operationName')
       .populate('scannedBy', 'name')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)

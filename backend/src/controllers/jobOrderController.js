@@ -1,7 +1,6 @@
 const JobOrder = require('../models/JobOrder');
 const Item = require('../models/Item');
 const Routing = require('../models/Routing');
-const User = require('../models/User');
 
 const generateJobOrderNo = async () => {
   const count = await JobOrder.countDocuments();
@@ -9,7 +8,6 @@ const generateJobOrderNo = async () => {
   return `JO-${year}-${String(count + 1).padStart(4, '0')}`;
 };
 
-// @route  POST /api/joborders
 exports.createJobOrder = async (req, res) => {
   try {
     const { jobOrderNo, item, routing, quantity, startDate, dueDate, remarks, status } = req.body;
@@ -65,10 +63,9 @@ exports.createJobOrder = async (req, res) => {
   }
 };
 
-// @route  GET /api/joborders  (supports ?status=&search=&page=&limit=)
 exports.getJobOrders = async (req, res) => {
   try {
-    const { search, status, page = 1, limit = 20 } = req.query;
+    const { search, status, itemQuery, date, page = 1, limit = 20 } = req.query;
 
     const filter = {};
     if (search) {
@@ -76,8 +73,26 @@ exports.getJobOrders = async (req, res) => {
     }
     if (status) filter.status = status;
 
+    if (itemQuery) {
+      const matchingItems = await Item.find({
+        $or: [
+          { itemCode: { $regex: itemQuery, $options: 'i' } },
+          { name: { $regex: itemQuery, $options: 'i' } },
+        ],
+      }).select('_id');
+      filter.item = { $in: matchingItems.map((i) => i._id) };
+    }
+
+    if (date) {
+      const start = new Date(date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(date);
+      end.setHours(23, 59, 59, 999);
+      filter.dueDate = { $gte: start, $lte: end };
+    }
+
     const jobOrders = await JobOrder.find(filter)
-      .populate('item', 'itemCode name unitOfMeasure')
+      .populate('item', 'itemCode name description unitOfMeasure')
       .populate('routing', 'routingCode')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
@@ -97,11 +112,10 @@ exports.getJobOrders = async (req, res) => {
   }
 };
 
-// @route  GET /api/joborders/:id
 exports.getJobOrderById = async (req, res) => {
   try {
     const jobOrder = await JobOrder.findById(req.params.id)
-      .populate('item', 'itemCode name unitOfMeasure')
+      .populate('item', 'itemCode name description unitOfMeasure')
       .populate({
         path: 'routing',
         populate: { path: 'steps.operation', select: 'operationCode operationName workCenter' },
@@ -117,7 +131,6 @@ exports.getJobOrderById = async (req, res) => {
   }
 };
 
-// @route  PUT /api/joborders/:id
 exports.updateJobOrder = async (req, res) => {
   try {
     const { item, routing, quantity, startDate, dueDate, remarks, status } = req.body;
@@ -154,16 +167,13 @@ exports.updateJobOrder = async (req, res) => {
   }
 };
 
-// @route  DELETE /api/joborders/:id
 exports.deleteJobOrder = async (req, res) => {
   try {
     const jobOrder = await JobOrder.findById(req.params.id);
     if (!jobOrder) {
       return res.status(404).json({ message: 'Job order not found' });
     }
-
     await jobOrder.deleteOne();
-
     res.status(200).json({ message: 'Job order deleted successfully' });
   } catch (err) {
     console.error('Delete job order error:', err.message);
@@ -171,7 +181,6 @@ exports.deleteJobOrder = async (req, res) => {
   }
 };
 
-// @route  GET /api/joborders/dashboard/summary  (Supervisor dashboard stats)
 exports.getDashboardSummary = async (req, res) => {
   try {
     const [total, inProgress, completed, pending] = await Promise.all([
@@ -182,12 +191,7 @@ exports.getDashboardSummary = async (req, res) => {
     ]);
 
     res.status(200).json({
-      summary: {
-        totalJobOrders: total,
-        inProgress,
-        completed,
-        pending,
-      },
+      summary: { totalJobOrders: total, inProgress, completed, pending },
     });
   } catch (err) {
     console.error('Dashboard summary error:', err.message);
@@ -195,7 +199,6 @@ exports.getDashboardSummary = async (req, res) => {
   }
 };
 
-// @route  GET /api/joborders/monitoring/overview
 exports.getProductionMonitoring = async (req, res) => {
   try {
     const jobOrders = await JobOrder.find({ status: { $in: ['Released', 'In Progress'] } })
@@ -230,57 +233,6 @@ exports.getProductionMonitoring = async (req, res) => {
     res.status(200).json({ monitoring, total: monitoring.length });
   } catch (err) {
     console.error('Production monitoring error:', err.message);
-    res.status(500).json({ message: 'Something went wrong. Please try again.' });
-  }
-};
-
-// @route  GET /api/joborders/my-queue?operationId=<id>  (optional filter)
-exports.getMyQueue = async (req, res) => {
-  try {
-    const { operationId } = req.query;
-
-    const currentUser = await User.findById(req.user.id).select('assignedOperations');
-    const assignedOps = currentUser?.assignedOperations || [];
-
-    if (assignedOps.length === 0) {
-      return res.status(200).json({ queue: [] });
-    }
-
-    const jobOrders = await JobOrder.find({ status: { $in: ['Released', 'In Progress'] } })
-      .populate('item', 'itemCode name')
-      .populate({
-        path: 'routing',
-        populate: { path: 'steps.operation', select: 'operationCode operationName workCenter' },
-      })
-      .sort({ dueDate: 1 });
-
-    const assignedOpIds = assignedOps.map((id) => id.toString());
-
-    const queue = jobOrders
-      .filter((jo) => {
-        const currentStep = jo.routing?.steps?.[jo.currentOperationIndex];
-        const currentOpId = currentStep?.operation?._id?.toString();
-        if (!currentOpId || !assignedOpIds.includes(currentOpId)) return false;
-        if (operationId && currentOpId !== operationId) return false;
-        return true;
-      })
-      .map((jo) => {
-        const currentStep = jo.routing.steps[jo.currentOperationIndex];
-        return {
-          jobOrderId: jo._id,
-          jobOrderNo: jo.jobOrderNo,
-          item: jo.item,
-          quantity: jo.quantity,
-          remainingQuantity: jo.quantity - (jo.completedQuantity + jo.rejectQuantity),
-          currentOperation: currentStep.operation,
-          status: jo.status,
-          dueDate: jo.dueDate,
-        };
-      });
-
-    res.status(200).json({ queue });
-  } catch (err) {
-    console.error('Get my queue error:', err.message);
     res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
 };
