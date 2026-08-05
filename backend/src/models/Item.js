@@ -2,42 +2,38 @@ const mongoose = require('mongoose');
 
 const itemSchema = new mongoose.Schema(
   {
-    itemNo: {
+    itemCode: {
       type: String,
-      required: true,
+      required: [true, 'Item code is required'],
       unique: true,
+      trim: true,
       uppercase: true,
+    },
+    name: {
+      type: String,
+      required: [true, 'Item name is required'],
       trim: true,
     },
-
-    itemName: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    category: {
-      type: String,
-      enum: ['Keyboard', 'Mouse', 'Printer', 'Scanner', 'PCB', 'Raw Material'],
-      required: true,
-    },
-
-    uom: {
-      type: String,
-      default: 'Nos',
-    },
-
     description: {
       type: String,
-      required: true,
+      trim: true,
+      default: '',
     },
-
+    unitOfMeasure: {
+      type: String,
+      required: [true, 'Unit of measure is required'],
+      trim: true,
+    },
+    itemType: {
+      type: String,
+      enum: ['FG', 'WIP', 'RM'],
+      required: [true, 'Item type is required'],
+    },
     status: {
       type: String,
       enum: ['Active', 'Inactive'],
       default: 'Active',
     },
-
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
