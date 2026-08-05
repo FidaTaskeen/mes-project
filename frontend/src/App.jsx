@@ -26,6 +26,7 @@ import ProductionEntry from "./pages/operator/ProductionEntry";
 import ProductionHistory from "./pages/operator/ProductionHistory";
 import MyPerformance from "./pages/operator/MyPerformance";
 import BOM from "./pages/admin/BOM";
+import Traceability from "./pages/supervisor/Traceability";
 import Routing from "./pages/admin/Routing";
 
 export default function App() {
@@ -152,7 +153,13 @@ export default function App() {
             }
           />
           <Route
-            path="/supervisor/monitoring"
+            path="/supervisor/traceability"
+            element={
+              <ProtectedRoute allowedRoles={["supervisor"]}>
+                <Traceability />
+              </ProtectedRoute>
+            }
+          />
             element={
               <ProtectedRoute allowedRoles={["supervisor"]}>
                 <ProductionMonitoring />

@@ -1,113 +1,384 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Pencil, PauseCircle, CheckCircle2 } from "lucide-react";
 import Layout from "../../components/Layout";
+import axiosInstance from "../../api/axiosInstance";
 
 const navGroups = [
   {
     items: [
-      { label: "Supervisor Dashboard", path: "/supervisor/dashboard" },
-      { label: "Create Job Order", path: "/supervisor/create-job-order" },
-      { label: "Job Order List", path: "/supervisor/job-order-list" },
-      { label: "Production Monitoring", path: "/supervisor/monitoring" },
-      { label: "Reports", path: "/supervisor/reports" },
+      { label: "Job Order", path: "/supervisor/job-order-list" },
+      { label: "Traceability", path: "/supervisor/traceability" },
     ],
   },
 ];
 
-// Mock data — later replaced by GET /api/job-orders
-const mockJobOrders = [
-  { id: 1, jobOrderNo: "JO-000123", item: "Steel Rod", quantity: 500, startDate: "2026-07-25", dueDate: "2026-08-05", status: "InProgress" },
-  { id: 2, jobOrderNo: "JO-000124", item: "Bracket Assembly", quantity: 200, startDate: "2026-07-26", dueDate: "2026-08-02", status: "Planned" },
-  { id: 3, jobOrderNo: "JO-000125", item: "Finished Motor", quantity: 50, startDate: "2026-07-20", dueDate: "2026-07-28", status: "Completed" },
-];
-
-const statusColors = {
-  Planned: "bg-slate-200 text-slate-600",
-  Released: "bg-blue-100 text-blue-700",
-  InProgress: "bg-yellow-100 text-yellow-700",
-  Completed: "bg-green-100 text-green-700",
+const emptyForm = {
+  item: "",
+  routing: "",
+  quantity: "",
+  startDate: "",
+  dueDate: "",
+  remarks: "",
 };
 
 export default function JobOrderList() {
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [jobOrders, setJobOrders] = useState([]);
+  const [items, setItems] = useState([]);
+  const [routings, setRoutings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [expandedRow, setExpandedRow] = useState(null);
 
-  const filteredOrders = mockJobOrders.filter((jo) => {
-    const matchesSearch =
-      jo.jobOrderNo.toLowerCase().includes(search.toLowerCase()) ||
-      jo.item.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "All" || jo.status === statusFilter;
-    return matchesSearch && matchesStatus;
+  const [filters, setFilters] = useState({
+    jobOrderNo: "",
+    itemNo: "",
+    status: "",
+    date: "",
   });
+
+  const [showForm, setShowForm] = useState(false);
+  const [editingJO, setEditingJO] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+
+  const loadData = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams();
+      if (filters.jobOrderNo) params.set("search", filters.jobOrderNo);
+      if (filters.itemNo) params.set("itemQuery", filters.itemNo);
+      if (filters.status) params.set("status", filters.status);
+      if (filters.date) params.set("date", filters.date);
+      params.set("limit", "100");
+
+      const [joRes, itemsRes] = await Promise.all([
+        axiosInstance.get(`/joborders?${params.toString()}`),
+        axiosInstance.get("/items?limit=100"),
+      ]);
+      setJobOrders(joRes.data.jobOrders || []);
+      setItems(itemsRes.data.items || []);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to load job orders");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loadRoutingsForItem = async (itemId) => {
+    if (!itemId) {
+      setRoutings([]);
+      return;
+    }
+    try {
+      const res = await axiosInstance.get(`/routings?item=${itemId}&limit=50`);
+      setRoutings(res.data.routings || []);
+    } catch {
+      setRoutings([]);
+    }
+  };
+
+  const openAddForm = () => {
+    setEditingJO(null);
+    setForm(emptyForm);
+    setRoutings([]);
+    setShowForm(true);
+  };
+
+  const openEditForm = async (jo) => {
+    setEditingJO(jo);
+    setForm({
+      item: jo.item?._id || "",
+      routing: jo.routing?._id || "",
+      quantity: jo.quantity,
+      startDate: jo.startDate ? jo.startDate.slice(0, 10) : "",
+      dueDate: jo.dueDate ? jo.dueDate.slice(0, 10) : "",
+      remarks: jo.remarks || "",
+    });
+    await loadRoutingsForItem(jo.item?._id);
+    setShowForm(true);
+  };
+
+  const handleItemChange = (itemId) => {
+    setForm({ ...form, item: itemId, routing: "" });
+    loadRoutingsForItem(itemId);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    try {
+      if (editingJO) {
+        await axiosInstance.put(`/joborders/${editingJO._id}`, form);
+      } else {
+        await axiosInstance.post("/joborders", form);
+      }
+      setShowForm(false);
+      loadData();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to save job order");
+    }
+  };
+
+  const setStatus = async (jo, status) => {
+    try {
+      await axiosInstance.put(`/joborders/${jo._id}`, { status });
+      loadData();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update status");
+    }
+  };
+
+  const statusBadge = (status) => {
+    const styles = {
+      Planned: "bg-slate-100 text-slate-600",
+      Released: "bg-blue-100 text-blue-700",
+      "On Hold": "bg-amber-100 text-amber-700",
+      "In Progress": "bg-indigo-100 text-indigo-700",
+      Completed: "bg-green-100 text-green-700",
+    };
+    return (
+      <span className={`px-2 py-0.5 rounded text-xs font-medium ${styles[status] || "bg-slate-100 text-slate-600"}`}>
+        {status}
+      </span>
+    );
+  };
 
   return (
     <Layout portalName="Supervisor Portal" theme="green" navGroups={navGroups}>
-      <h1 className="text-2xl font-bold mb-6">Job Order List</h1>
-
-      <div className="flex gap-4 mb-4">
-        <input
-          type="text"
-          placeholder="Search by Job Order No. or Item..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 border rounded px-3 py-2 text-sm"
-        />
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="border rounded px-3 py-2 text-sm"
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">Job Order</h1>
+        <button
+          onClick={openAddForm}
+          className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700"
         >
-          <option value="All">All Statuses</option>
-          <option value="Planned">Planned</option>
-          <option value="Released">Released</option>
-          <option value="InProgress">In Progress</option>
-          <option value="Completed">Completed</option>
-        </select>
+          + Create Job Order
+        </button>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="w-full text-sm">
+      {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>}
+
+      {/* Filters */}
+      <div className="bg-white rounded-xl shadow-sm border p-4 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Job Order No.</label>
+            <input
+              value={filters.jobOrderNo}
+              onChange={(e) => setFilters({ ...filters, jobOrderNo: e.target.value })}
+              className="w-full border rounded-lg px-2 py-1.5 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Item No.</label>
+            <input
+              value={filters.itemNo}
+              onChange={(e) => setFilters({ ...filters, itemNo: e.target.value })}
+              className="w-full border rounded-lg px-2 py-1.5 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              className="w-full border rounded-lg px-2 py-1.5 text-sm"
+            >
+              <option value="">All</option>
+              <option value="Planned">Planned</option>
+              <option value="Released">Released</option>
+              <option value="On Hold">On Hold</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
+            <input
+              type="date"
+              value={filters.date}
+              onChange={(e) => setFilters({ ...filters, date: e.target.value })}
+              className="w-full border rounded-lg px-2 py-1.5 text-sm"
+            />
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={loadData} className="bg-slate-800 text-white px-4 py-1.5 rounded-lg text-sm font-medium">
+            Search
+          </button>
+          <button
+            onClick={() => {
+              setFilters({ jobOrderNo: "", itemNo: "", status: "", date: "" });
+              loadData();
+            }}
+            className="border px-4 py-1.5 rounded-lg text-sm font-medium text-slate-600"
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
+        <table className="w-full text-sm whitespace-nowrap">
           <thead className="bg-slate-100 text-left">
             <tr>
-              <th className="px-4 py-3">Job Order No.</th>
-              <th className="px-4 py-3">Item</th>
+              <th className="px-4 py-3">Job No.</th>
+              <th className="px-4 py-3">Item No.</th>
+              <th className="px-4 py-3">Item No. - Description</th>
               <th className="px-4 py-3">Quantity</th>
-              <th className="px-4 py-3">Start Date</th>
+              <th className="px-4 py-3">Produced Qty</th>
               <th className="px-4 py-3">Due Date</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filteredOrders.map((jo) => (
-              <tr key={jo.id} className="border-t">
-                <td className="px-4 py-3 font-medium">{jo.jobOrderNo}</td>
-                <td className="px-4 py-3">{jo.item}</td>
-                <td className="px-4 py-3">{jo.quantity}</td>
-                <td className="px-4 py-3">{jo.startDate}</td>
-                <td className="px-4 py-3">{jo.dueDate}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded text-xs ${statusColors[jo.status]}`}>
-                    {jo.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <Link to={`/supervisor/job-order-details/${jo.jobOrderNo}`} className="text-blue-600 hover:underline">
-  View
-</Link>
-                </td>
-              </tr>
-            ))}
-            {filteredOrders.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
-                  No job orders match your search.
-                </td>
-              </tr>
+            {loading ? (
+              <tr><td colSpan="8" className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
+            ) : jobOrders.length === 0 ? (
+              <tr><td colSpan="8" className="px-4 py-6 text-center text-slate-400">No job orders found.</td></tr>
+            ) : (
+              jobOrders.map((jo) => (
+                <tr key={jo._id} className="border-t hover:bg-slate-50 align-top">
+                  <td className="px-4 py-3 font-medium text-green-700">{jo.jobOrderNo}</td>
+                  <td className="px-4 py-3">{jo.item?.itemCode}</td>
+                  <td className="px-4 py-3 max-w-xs">
+                    <button
+                      onClick={() => setExpandedRow(expandedRow === jo._id ? null : jo._id)}
+                      className="text-left"
+                    >
+                      <span className={expandedRow === jo._id ? "" : "line-clamp-1"}>
+                        {jo.item?.itemCode} - {jo.item?.name}
+                        {expandedRow === jo._id && jo.item?.description && (
+                          <span className="block text-xs text-slate-400 mt-1">{jo.item.description}</span>
+                        )}
+                      </span>
+                    </button>
+                  </td>
+                  <td className="px-4 py-3">{jo.quantity}</td>
+                  <td className="px-4 py-3">{jo.completedQuantity}</td>
+                  <td className="px-4 py-3">{new Date(jo.dueDate).toLocaleDateString()}</td>
+                  <td className="px-4 py-3">{statusBadge(jo.status)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openEditForm(jo)}
+                        className="w-7 h-7 rounded bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-blue-50 hover:text-blue-600"
+                        title="Edit"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => setStatus(jo, jo.status === "On Hold" ? "Released" : "On Hold")}
+                        className={`w-7 h-7 rounded flex items-center justify-center ${
+                          jo.status === "On Hold" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600 hover:bg-amber-50 hover:text-amber-600"
+                        }`}
+                        title={jo.status === "On Hold" ? "Currently paused - click to resume" : "Pause"}
+                      >
+                        <PauseCircle size={14} />
+                      </button>
+                      <button
+                        onClick={() => setStatus(jo, "Completed")}
+                        className={`w-7 h-7 rounded flex items-center justify-center ${
+                          jo.status === "Completed" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600 hover:bg-green-50 hover:text-green-600"
+                        }`}
+                        title="Mark Completed"
+                      >
+                        <CheckCircle2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>
       </div>
+
+      {showForm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
+          <form onSubmit={handleSubmit} className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h2 className="text-lg font-bold mb-4">{editingJO ? "Edit Job Order" : "Create Job Order"}</h2>
+
+            <label className="block text-sm font-medium mb-1">Item No.</label>
+            <select
+              value={form.item}
+              onChange={(e) => handleItemChange(e.target.value)}
+              required
+              className="w-full border rounded-lg px-3 py-2 mb-3"
+            >
+              <option value="">-- Select Item --</option>
+              {items.map((item) => (
+                <option key={item._id} value={item._id}>
+                  {item.itemCode} - {item.name}
+                </option>
+              ))}
+            </select>
+
+            <label className="block text-sm font-medium mb-1">Routing</label>
+            <select
+              value={form.routing}
+              onChange={(e) => setForm({ ...form, routing: e.target.value })}
+              required
+              disabled={!form.item}
+              className="w-full border rounded-lg px-3 py-2 mb-3 disabled:bg-slate-50"
+            >
+              <option value="">-- Select Routing --</option>
+              {routings.map((r) => (
+                <option key={r._id} value={r._id}>{r.routingCode}</option>
+              ))}
+            </select>
+
+            <label className="block text-sm font-medium mb-1">Quantity</label>
+            <input
+              type="number"
+              value={form.quantity}
+              onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+              required
+              className="w-full border rounded-lg px-3 py-2 mb-3"
+            />
+
+            <label className="block text-sm font-medium mb-1">Start Date</label>
+            <input
+              type="date"
+              value={form.startDate}
+              onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+              required
+              className="w-full border rounded-lg px-3 py-2 mb-3"
+            />
+
+            <label className="block text-sm font-medium mb-1">Due Date</label>
+            <input
+              type="date"
+              value={form.dueDate}
+              onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+              required
+              className="w-full border rounded-lg px-3 py-2 mb-3"
+            />
+
+            <label className="block text-sm font-medium mb-1">Remarks</label>
+            <input
+              value={form.remarks}
+              onChange={(e) => setForm({ ...form, remarks: e.target.value })}
+              className="w-full border rounded-lg px-3 py-2 mb-4"
+            />
+
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-slate-600">
+                Cancel
+              </button>
+              <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm">
+                Save
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </Layout>
   );
 }
