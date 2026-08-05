@@ -2,22 +2,20 @@ const mongoose = require('mongoose');
 
 const bomComponentSchema = new mongoose.Schema(
   {
-    componentItem: {
+    item: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Item',
-      required: true,
+      required: [true, 'Component item is required'],
     },
-
     quantity: {
       type: Number,
-      required: true,
-      min: 0.001,
+      required: [true, 'Quantity is required'],
+      min: [0.001, 'Quantity must be greater than 0'],
     },
-
-    uom: {
+    unit: {
       type: String,
-      required: true,
-      default: 'Nos',
+      required: [true, 'Unit is required'],
+      trim: true,
     },
   },
   { _id: false }
@@ -25,41 +23,35 @@ const bomComponentSchema = new mongoose.Schema(
 
 const bomSchema = new mongoose.Schema(
   {
-    bomNo: {
+    bomCode: {
       type: String,
-      required: true,
+      required: [true, 'BOM code is required'],
       unique: true,
-      uppercase: true,
       trim: true,
+      uppercase: true,
     },
-
-    item: {
+    parentItem: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Item',
-      required: true,
+      required: [true, 'Parent item (finished/WIP item this BOM builds) is required'],
     },
-
     version: {
       type: String,
-      default: 'V1',
+      default: 'v1',
+      trim: true,
     },
-
     components: {
       type: [bomComponentSchema],
       validate: {
-        validator: function (v) {
-          return v.length > 0;
-        },
-        message: 'At least one BOM component is required',
+        validator: (arr) => arr.length > 0,
+        message: 'BOM must have at least one component',
       },
     },
-
     status: {
       type: String,
       enum: ['Active', 'Inactive'],
       default: 'Active',
     },
-
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
