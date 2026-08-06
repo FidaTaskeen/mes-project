@@ -8,9 +8,8 @@ const {
   deleteJobOrder,
   getDashboardSummary,
   getProductionMonitoring,
-  getMyQueue,
 } = require('../controllers/jobOrderController');
-const { scanJobOrder } = require('../controllers/productionEntryController');
+const { scanJobOrder, getMyQueue } = require('../controllers/productionEntryController');
 const { protect, authorize } = require('../middleware/auth');
 
 router.use(protect);
