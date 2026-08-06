@@ -8,6 +8,7 @@ const navGroups = [
     title: "MASTER DATA",
     items: [
       { label: "Items", path: "/admin/items" },
+      { label: "Operations", path: "/admin/operations" },
       { label: "BOM", path: "/admin/bom" },
       { label: "Routing", path: "/admin/routing" },
       { label: "Users", path: "/admin/users" },
@@ -16,10 +17,10 @@ const navGroups = [
 ];
 
 const emptyForm = {
-  itemNo: "",
-  itemName: "",
-  category: "Printer",
-  uom: "Nos",
+  itemCode: "",
+  name: "",
+  itemType: "FG",
+  unitOfMeasure: "PCS",
   description: "",
   status: "Active",
 };
@@ -38,28 +39,9 @@ export default function AdminItems() {
   const loadItems = async () => {
     setLoading(true);
     setError("");
-
     try {
-      const res = await axiosInstance.get("/items");
-      let data = res.data.items || [];
-
-      if (data.length === 0) {
-        const dummy = {
-          itemNo: "PR001",
-          itemName: "TVSE Thermal Printer",
-          category: "Printer",
-          uom: "Nos",
-          description:
-            "TVSE Thermal Printer\nUSB + Ethernet Interface\n203 DPI Industrial Printing",
-          status: "Active",
-        };
-
-        await axiosInstance.post("/items", dummy);
-        const reload = await axiosInstance.get("/items");
-        data = reload.data.items || [];
-      }
-
-      setItems(data);
+      const res = await axiosInstance.get("/items?limit=100");
+      setItems(res.data.items || []);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load items");
     } finally {
@@ -80,11 +62,11 @@ export default function AdminItems() {
   const openEditForm = (item) => {
     setEditingItem(item);
     setForm({
-      itemNo: item.itemNo,
-      itemName: item.itemName,
-      category: item.category,
-      uom: item.uom,
-      description: item.description,
+      itemCode: item.itemCode,
+      name: item.name,
+      itemType: item.itemType,
+      unitOfMeasure: item.unitOfMeasure,
+      description: item.description || "",
       status: item.status,
     });
     setShowForm(true);
@@ -94,14 +76,12 @@ export default function AdminItems() {
     e.preventDefault();
     setSaving(true);
     setError("");
-
     try {
       if (editingItem) {
         await axiosInstance.put(`/items/${editingItem._id}`, form);
       } else {
         await axiosInstance.post("/items", form);
       }
-
       setShowForm(false);
       loadItems();
     } catch (err) {
@@ -113,7 +93,6 @@ export default function AdminItems() {
 
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this item?")) return;
-
     try {
       await axiosInstance.delete(`/items/${id}`);
       loadItems();
@@ -124,20 +103,19 @@ export default function AdminItems() {
 
   const filteredItems = items.filter(
     (item) =>
-      item.itemNo?.toLowerCase().includes(search.toLowerCase()) ||
-      item.itemName?.toLowerCase().includes(search.toLowerCase())
+      item.itemCode?.toLowerCase().includes(search.toLowerCase()) ||
+      item.name?.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <Layout portalName="Admin Portal" theme="blue" navGroups={navGroups}>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">TVSE Item Master</h1>
+          <h1 className="text-2xl font-bold text-slate-800">Item Master</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Create manufacturing items for BOM, Routing, and Job Orders
+            Create items — then build a BOM against this item, then a Routing against that BOM.
           </p>
         </div>
-
         <button
           onClick={openAddForm}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
@@ -147,15 +125,13 @@ export default function AdminItems() {
       </div>
 
       {error && (
-        <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">
-          {error}
-        </div>
+        <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>
       )}
 
       <div className="bg-white rounded-lg shadow mb-4 p-4">
         <input
           type="text"
-          placeholder="Search by Item No or Item Name"
+          placeholder="Search by Item Code or Name"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full border rounded-lg px-3 py-2"
@@ -169,44 +145,27 @@ export default function AdminItems() {
           <table className="w-full text-sm">
             <thead className="bg-slate-100 text-left">
               <tr>
-                <th className="px-4 py-3">Item No</th>
-                <th className="px-4 py-3">Item Name</th>
-                <th className="px-4 py-3">Category</th>
+                <th className="px-4 py-3">Item Code</th>
+                <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3">UOM</th>
                 <th className="px-4 py-3">Description</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
-
             <tbody>
               {filteredItems.map((item) => (
                 <tr key={item._id} className="border-t hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-blue-700">
-                    {item.itemNo}
-                  </td>
-
-                  <td className="px-4 py-3">
-                    {item.itemName}
-                  </td>
-
-                  <td className="px-4 py-3">
-                    {item.category}
-                  </td>
-
-                  <td className="px-4 py-3">
-                    {item.uom}
-                  </td>
-
+                  <td className="px-4 py-3 font-medium text-blue-700">{item.itemCode}</td>
+                  <td className="px-4 py-3">{item.name}</td>
+                  <td className="px-4 py-3">{item.itemType}</td>
+                  <td className="px-4 py-3">{item.unitOfMeasure}</td>
                   <td className="px-4 py-3 max-w-xs">
-                    <button
-                      className="text-blue-600 hover:underline text-left"
-                      title={item.description}
-                    >
-                      View Description
-                    </button>
+                    <span title={item.description} className="text-slate-500 line-clamp-1">
+                      {item.description || "—"}
+                    </span>
                   </td>
-
                   <td className="px-4 py-3">
                     <span
                       className={`px-2 py-1 rounded text-xs ${
@@ -218,25 +177,16 @@ export default function AdminItems() {
                       {item.status}
                     </span>
                   </td>
-
                   <td className="px-4 py-3 space-x-3">
-                    <button
-                      onClick={() => openEditForm(item)}
-                      className="text-blue-600 hover:underline"
-                    >
+                    <button onClick={() => openEditForm(item)} className="text-blue-600 hover:underline">
                       Edit
                     </button>
-
-                    <button
-                      onClick={() => handleDelete(item._id)}
-                      className="text-red-600 hover:underline"
-                    >
+                    <button onClick={() => handleDelete(item._id)} className="text-red-600 hover:underline">
                       Delete
                     </button>
                   </td>
                 </tr>
               ))}
-
               {filteredItems.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
@@ -251,111 +201,60 @@ export default function AdminItems() {
 
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
-          <form
-            onSubmit={handleSubmit}
-            className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto"
-          >
-            <h2 className="text-xl font-bold mb-5">
-              {editingItem ? "Edit Item" : "Add TVSE Item"}
-            </h2>
+          <form onSubmit={handleSubmit} className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-5">{editingItem ? "Edit Item" : "Add Item"}</h2>
 
-            <label className="block text-sm font-medium mb-1">
-              Item No
-            </label>
+            <label className="block text-sm font-medium mb-1">Item Code</label>
             <input
-              value={form.itemNo}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  itemNo: e.target.value.toUpperCase(),
-                })
-              }
+              value={form.itemCode}
+              onChange={(e) => setForm({ ...form, itemCode: e.target.value.toUpperCase() })}
               required
-              placeholder="PR001"
+              placeholder="e.g. TVSE-SCN-01"
               className="w-full border rounded px-3 py-2 mb-3 uppercase"
             />
 
-            <label className="block text-sm font-medium mb-1">
-              Item Name
-            </label>
+            <label className="block text-sm font-medium mb-1">Item Name</label>
             <input
-              value={form.itemName}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  itemName: e.target.value,
-                })
-              }
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
               required
-              placeholder="TVSE Thermal Printer"
+              placeholder="e.g. Barcode Scanner"
               className="w-full border rounded px-3 py-2 mb-3"
             />
 
-            <label className="block text-sm font-medium mb-1">
-              Category
-            </label>
+            <label className="block text-sm font-medium mb-1">Item Type</label>
             <select
-              value={form.category}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  category: e.target.value,
-                })
-              }
+              value={form.itemType}
+              onChange={(e) => setForm({ ...form, itemType: e.target.value })}
               className="w-full border rounded px-3 py-2 mb-3"
             >
-              <option value="Printer">Printer</option>
-              <option value="Scanner">Scanner</option>
-              <option value="Keyboard">Keyboard</option>
-              <option value="Mouse">Mouse</option>
-              <option value="PCB">PCB</option>
+              <option value="FG">FG (Finished Good)</option>
+              <option value="WIP">WIP (Work in Progress)</option>
+              <option value="RM">RM (Raw Material)</option>
             </select>
 
-            <label className="block text-sm font-medium mb-1">
-              UOM
-            </label>
+            <label className="block text-sm font-medium mb-1">Unit of Measure</label>
             <input
-              value={form.uom}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  uom: e.target.value,
-                })
-              }
+              value={form.unitOfMeasure}
+              onChange={(e) => setForm({ ...form, unitOfMeasure: e.target.value })}
               required
-              placeholder="Nos"
+              placeholder="e.g. PCS"
               className="w-full border rounded px-3 py-2 mb-3"
             />
 
-            <label className="block text-sm font-medium mb-1">
-              Description (3 Lines)
-            </label>
+            <label className="block text-sm font-medium mb-1">Description</label>
             <textarea
               value={form.description}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  description: e.target.value,
-                })
-              }
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
               rows={3}
-              placeholder={`TVSE Thermal Printer
-USB + Ethernet Interface
-203 DPI Industrial Printing`}
+              placeholder="Short description..."
               className="w-full border rounded px-3 py-2 mb-3"
             />
 
-            <label className="block text-sm font-medium mb-1">
-              Status
-            </label>
+            <label className="block text-sm font-medium mb-1">Status</label>
             <select
               value={form.status}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  status: e.target.value,
-                })
-              }
+              onChange={(e) => setForm({ ...form, status: e.target.value })}
               className="w-full border rounded px-3 py-2 mb-5"
             >
               <option value="Active">Active</option>
@@ -363,14 +262,9 @@ USB + Ethernet Interface
             </select>
 
             <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                className="px-4 py-2 text-slate-600"
-              >
+              <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-slate-600">
                 Cancel
               </button>
-
               <button
                 type="submit"
                 disabled={saving}
