@@ -25,12 +25,22 @@ const emptyForm = {
   steps: [],
 };
 
+const emptyFilters = {
+  routingCode: "",
+  itemNo: "",
+  description: "",
+  version: "",
+  status: "",
+};
+
 export default function Routing() {
   const [routings, setRoutings] = useState([]);
   const [boms, setBoms] = useState([]);
   const [operations, setOperations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [filters, setFilters] = useState(emptyFilters);
 
   const [showForm, setShowForm] = useState(false);
   const [editingRouting, setEditingRouting] = useState(null);
@@ -73,6 +83,40 @@ export default function Routing() {
     }
   };
 
+  // Client-side filtering (matches whatever the backend already returned)
+  const filteredRoutings = routings.filter((r) => {
+    if (
+      filters.routingCode &&
+      !r.routingCode?.toLowerCase().includes(filters.routingCode.toLowerCase())
+    )
+      return false;
+
+    if (
+      filters.itemNo &&
+      !r.item?.itemCode?.toLowerCase().includes(filters.itemNo.toLowerCase())
+    )
+      return false;
+
+    if (
+      filters.description &&
+      !r.item?.name?.toLowerCase().includes(filters.description.toLowerCase()) &&
+      !r.item?.description?.toLowerCase().includes(filters.description.toLowerCase())
+    )
+      return false;
+
+    if (
+      filters.version &&
+      !r.version?.toLowerCase().includes(filters.version.toLowerCase())
+    )
+      return false;
+
+    if (filters.status && r.status !== filters.status) return false;
+
+    return true;
+  });
+
+  const clearFilters = () => setFilters(emptyFilters);
+
   const generateRoutingCode = () => {
     const next = routings.length + 1;
     return `RT-${String(next).padStart(3, "0")}`;
@@ -100,7 +144,6 @@ export default function Routing() {
     setShowForm(true);
   };
 
-  // Add every active operation as a step, in operationCode order, auto-numbered
   const addAllOperations = () => {
     const steps = operations.map((op, index) => ({
       operation: op._id,
@@ -124,7 +167,6 @@ export default function Routing() {
     const updated = [...form.steps];
     updated[index][field] = value;
 
-    // Auto-fill standard time from the selected operation's default
     if (field === "operation") {
       const op = operations.find((o) => o._id === value);
       if (op) updated[index].standardTime = op.standardTime;
@@ -185,6 +227,64 @@ export default function Routing() {
         <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>
       )}
 
+      {/* Filter bar */}
+      <div className="bg-white rounded-xl shadow-sm border p-4 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Routing Code</label>
+            <input
+              value={filters.routingCode}
+              onChange={(e) => setFilters({ ...filters, routingCode: e.target.value })}
+              className="w-full border rounded-lg px-2 py-1.5 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Item No</label>
+            <input
+              value={filters.itemNo}
+              onChange={(e) => setFilters({ ...filters, itemNo: e.target.value })}
+              className="w-full border rounded-lg px-2 py-1.5 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+            <input
+              value={filters.description}
+              onChange={(e) => setFilters({ ...filters, description: e.target.value })}
+              className="w-full border rounded-lg px-2 py-1.5 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Version</label>
+            <input
+              value={filters.version}
+              onChange={(e) => setFilters({ ...filters, version: e.target.value })}
+              className="w-full border rounded-lg px-2 py-1.5 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              className="w-full border rounded-lg px-2 py-1.5 text-sm"
+            >
+              <option value="">All</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={clearFilters}
+            className="border px-4 py-1.5 rounded-lg text-sm font-medium text-slate-600"
+          >
+            Clear Filters
+          </button>
+        </div>
+      </div>
+
       <div className="bg-white rounded-xl shadow border overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-100">
@@ -202,10 +302,10 @@ export default function Routing() {
           <tbody>
             {loading ? (
               <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
-            ) : routings.length === 0 ? (
+            ) : filteredRoutings.length === 0 ? (
               <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">No routings found.</td></tr>
             ) : (
-              routings.map((routing) => (
+              filteredRoutings.map((routing) => (
                 <tr key={routing._id} className="border-t align-top">
                   <td className="px-4 py-3 font-medium text-blue-700">{routing.routingCode}</td>
                   <td className="px-4 py-3">{routing.item?.itemCode}</td>
