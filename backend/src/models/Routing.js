@@ -103,12 +103,11 @@ const routingSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-routingSchema.pre('save', function (next) {
+routingSchema.pre('save', function () {
   const seq = this.steps.map((s) => s.sequenceNo);
   if (new Set(seq).size !== seq.length) {
-    return next(new Error('Sequence numbers must be unique'));
+    throw new Error('Sequence numbers must be unique');
   }
-  next();
 });
 
 module.exports = mongoose.model('Routing', routingSchema);
