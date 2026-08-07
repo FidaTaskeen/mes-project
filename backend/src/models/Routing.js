@@ -12,6 +12,26 @@ const routingStepSchema = new mongoose.Schema(
       required: [true, 'Sequence number is required'],
       min: 1,
     },
+    stage: {
+      type: String,
+      enum: ['Start', 'Middle', 'End'],
+      default: 'Middle',
+    },
+    previousOperation: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Operation',
+      default: null,
+    },
+    type: {
+      type: String,
+      enum: ['Scanning', 'No_Scanning'],
+      default: 'No_Scanning',
+    },
+    scan: {
+      type: String,
+      enum: ['Serial No', 'None'],
+      default: 'None',
+    },
     standardTime: {
       type: Number,
       default: 0,
@@ -85,6 +105,45 @@ const routingSchema = new mongoose.Schema(
 
     validTo: {
       type: Date,
+    },
+
+    firstScanningOperation: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Operation',
+      default: null,
+    },
+
+    activeOperation: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Operation',
+      default: null,
+    },
+
+    consumptionOperation: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Operation',
+      default: null,
+    },
+
+    finalOperation: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Operation',
+      default: null,
+    },
+
+    setupVerification: {
+      type: Boolean,
+      default: false,
+    },
+
+    inventoryValidation: {
+      type: Boolean,
+      default: false,
+    },
+
+    sampleRun: {
+      type: Boolean,
+      default: false,
     },
 
     steps: {

@@ -3,11 +3,24 @@ const Item = require('../models/Item');
 const Operation = require('../models/Operation');
 const BOM = require('../models/BOM');
 
+const POPULATE_FIELDS = [
+  'item',
+  'bom',
+  'steps.operation',
+  'steps.previousOperation',
+  'firstScanningOperation',
+  'activeOperation',
+  'consumptionOperation',
+  'finalOperation',
+];
+
 exports.createRouting = async (req, res) => {
   try {
     const {
       routingCode, bom, steps, status, version,
       plant, shopfloor, description, inputItemDescription, validFrom, validTo,
+      firstScanningOperation, activeOperation, consumptionOperation, finalOperation,
+      setupVerification, inventoryValidation, sampleRun,
     } = req.body;
 
     if (!routingCode || !bom || !steps || steps.length === 0) {
@@ -30,12 +43,19 @@ exports.createRouting = async (req, res) => {
     const routing = await Routing.create({
       routingCode, item, bom, steps, status, version,
       plant, shopfloor, description, inputItemDescription, validFrom, validTo,
+      firstScanningOperation: firstScanningOperation || null,
+      activeOperation: activeOperation || null,
+      consumptionOperation: consumptionOperation || null,
+      finalOperation: finalOperation || null,
+      setupVerification: !!setupVerification,
+      inventoryValidation: !!inventoryValidation,
+      sampleRun: !!sampleRun,
       createdBy: req.user.id,
     });
 
-    const populated = await routing.populate(['item', 'bom', 'steps.operation']);
+    const populated = await routing.populate(POPULATE_FIELDS);
     res.status(201).json({ message: 'Routing created successfully', routing: populated });
- } catch (err) {
+  } catch (err) {
     console.error('Create routing error:', err.stack);
     res.status(500).json({ message: err.message || 'Something went wrong. Please try again.' });
   }
@@ -43,7 +63,10 @@ exports.createRouting = async (req, res) => {
 
 exports.getRoutings = async (req, res) => {
   try {
-    const { search, status, plant, shopfloor, item, page = 1, limit = 20 } = req.query;
+    const {
+      search, status, plant, shopfloor, item, description,
+      firstScanningOperation, finalOperation, page = 1, limit = 20,
+    } = req.query;
 
     const filter = {};
     if (search) filter.routingCode = { $regex: search, $options: 'i' };
@@ -51,11 +74,19 @@ exports.getRoutings = async (req, res) => {
     if (plant) filter.plant = plant;
     if (shopfloor) filter.shopfloor = shopfloor;
     if (item) filter.item = item;
+    if (description) filter.description = { $regex: description, $options: 'i' };
+    if (firstScanningOperation) filter.firstScanningOperation = firstScanningOperation;
+    if (finalOperation) filter.finalOperation = finalOperation;
 
     const routings = await Routing.find(filter)
-      .populate('item', 'itemCode name')
+      .populate('item', 'itemCode name description')
       .populate('bom', 'bomCode')
       .populate('steps.operation', 'operationCode operationName workCenter')
+      .populate('steps.previousOperation', 'operationCode operationName')
+      .populate('firstScanningOperation', 'operationCode operationName')
+      .populate('activeOperation', 'operationCode operationName')
+      .populate('consumptionOperation', 'operationCode operationName')
+      .populate('finalOperation', 'operationCode operationName')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit));
@@ -70,10 +101,7 @@ exports.getRoutings = async (req, res) => {
 
 exports.getRoutingById = async (req, res) => {
   try {
-    const routing = await Routing.findById(req.params.id)
-      .populate('item', 'itemCode name description')
-      .populate('bom', 'bomCode')
-      .populate('steps.operation', 'operationCode operationName workCenter');
+    const routing = await Routing.findById(req.params.id).populate(POPULATE_FIELDS);
     if (!routing) return res.status(404).json({ message: 'Routing not found' });
     res.status(200).json({ routing });
   } catch (err) {
@@ -87,6 +115,8 @@ exports.updateRouting = async (req, res) => {
     const {
       routingCode, bom, steps, status, version,
       plant, shopfloor, description, inputItemDescription, validFrom, validTo,
+      firstScanningOperation, activeOperation, consumptionOperation, finalOperation,
+      setupVerification, inventoryValidation, sampleRun,
     } = req.body;
 
     const routing = await Routing.findById(req.params.id);
@@ -121,12 +151,19 @@ exports.updateRouting = async (req, res) => {
     routing.inputItemDescription = inputItemDescription ?? routing.inputItemDescription;
     routing.validFrom = validFrom ?? routing.validFrom;
     routing.validTo = validTo ?? routing.validTo;
+    routing.firstScanningOperation = firstScanningOperation ?? routing.firstScanningOperation;
+    routing.activeOperation = activeOperation ?? routing.activeOperation;
+    routing.consumptionOperation = consumptionOperation ?? routing.consumptionOperation;
+    routing.finalOperation = finalOperation ?? routing.finalOperation;
+    if (setupVerification !== undefined) routing.setupVerification = !!setupVerification;
+    if (inventoryValidation !== undefined) routing.inventoryValidation = !!inventoryValidation;
+    if (sampleRun !== undefined) routing.sampleRun = !!sampleRun;
 
     await routing.save();
-    const populated = await routing.populate(['item', 'bom', 'steps.operation']);
+    const populated = await routing.populate(POPULATE_FIELDS);
     res.status(200).json({ message: 'Routing updated successfully', routing: populated });
   } catch (err) {
-    console.error('Update routing error:', err.message);
+    console.error('Update routing error:', err.stack);
     res.status(500).json({ message: err.message || 'Something went wrong. Please try again.' });
   }
 };
