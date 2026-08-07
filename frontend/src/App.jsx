@@ -160,6 +160,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/supervisor/production-monitoring"
             element={
               <ProtectedRoute allowedRoles={["supervisor"]}>
                 <ProductionMonitoring />

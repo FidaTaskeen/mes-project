@@ -28,13 +28,31 @@ const operationSchema = new mongoose.Schema(
       min: 0,
     },
 
-    sequenceNo: {
-      type: Number,
-      required: true,
-      min: 1,
+    plant: {
+      type: String,
+      default: '',
+      trim: true,
     },
 
-    description: {
+    shopfloor: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
+    machineGroup: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
+    routingType: {
+      type: String,
+      enum: ['Direct Checkout', 'Check In/Out', 'Standard'],
+      default: 'Direct Checkout',
+    },
+
+    operationRank: {
       type: String,
       default: '',
       trim: true,

@@ -8,6 +8,7 @@ const navGroups = [
     title: "MASTER DATA",
     items: [
       { label: "Items", path: "/admin/items" },
+      { label: "Operations", path: "/admin/operations" },
       { label: "BOM", path: "/admin/bom" },
       { label: "Routing", path: "/admin/routing" },
       { label: "Users", path: "/admin/users" },
@@ -16,10 +17,10 @@ const navGroups = [
 ];
 
 const emptyForm = {
-  bomNo: "",
-  item: "",
-  version: "V1",
-  components: [{ componentItem: "", quantity: 1, uom: "Nos" }],
+  bomCode: "",
+  parentItem: "",
+  version: "v1",
+  components: [{ item: "", quantity: 1, unit: "PCS" }],
   status: "Active",
 };
 
@@ -50,7 +51,7 @@ export default function BOM() {
 
   const loadBoms = async () => {
     try {
-      const res = await axiosInstance.get("/boms");
+      const res = await axiosInstance.get("/boms?limit=100");
       setBoms(res.data.boms || []);
     } catch (err) {
       console.error(err);
@@ -59,16 +60,16 @@ export default function BOM() {
     }
   };
 
-  const generateBomNo = () => {
+  const generateBomCode = () => {
     const next = boms.length + 1;
-    return `BOM${String(next).padStart(3, "0")}`;
+    return `BOM-${String(next).padStart(3, "0")}`;
   };
 
   const openAddForm = () => {
     setEditingBom(null);
     setForm({
       ...emptyForm,
-      bomNo: generateBomNo(),
+      bomCode: generateBomCode(),
     });
     setShowForm(true);
   };
@@ -76,10 +77,14 @@ export default function BOM() {
   const openEditForm = (bom) => {
     setEditingBom(bom);
     setForm({
-      bomNo: bom.bomNo,
-      item: bom.item?._id || bom.item,
+      bomCode: bom.bomCode,
+      parentItem: bom.parentItem?._id || bom.parentItem,
       version: bom.version,
-      components: bom.components,
+      components: bom.components.map((c) => ({
+        item: c.item?._id || c.item,
+        quantity: c.quantity,
+        unit: c.unit,
+      })),
       status: bom.status,
     });
     setShowForm(true);
@@ -96,7 +101,7 @@ export default function BOM() {
       ...form,
       components: [
         ...form.components,
-        { componentItem: "", quantity: 1, uom: "Nos" },
+        { item: "", quantity: 1, unit: "PCS" },
       ],
     });
   };
@@ -173,7 +178,7 @@ export default function BOM() {
           <table className="w-full text-sm">
             <thead className="bg-slate-100 text-left">
               <tr>
-                <th className="px-4 py-3">BOM No</th>
+                <th className="px-4 py-3">BOM Code</th>
                 <th className="px-4 py-3">Item No</th>
                 <th className="px-4 py-3">Item Name</th>
                 <th className="px-4 py-3">Version</th>
@@ -187,15 +192,15 @@ export default function BOM() {
               {boms.map((bom) => (
                 <tr key={bom._id} className="border-t align-top">
                   <td className="px-4 py-3 font-medium text-blue-700">
-                    {bom.bomNo}
+                    {bom.bomCode}
                   </td>
 
                   <td className="px-4 py-3">
-                    {bom.item?.itemNo}
+                    {bom.parentItem?.itemCode}
                   </td>
 
                   <td className="px-4 py-3">
-                    {bom.item?.itemName}
+                    {bom.parentItem?.name}
                   </td>
 
                   <td className="px-4 py-3">
@@ -205,8 +210,8 @@ export default function BOM() {
                   <td className="px-4 py-3">
                     {bom.components?.map((c, index) => (
                       <div key={index}>
-                        {c.componentItem?.itemNo} - {c.componentItem?.itemName}
-                        ({c.quantity} {c.uom})
+                        {c.item?.itemCode} - {c.item?.name}
+                        {" "}({c.quantity} {c.unit})
                       </div>
                     ))}
                   </td>
@@ -269,10 +274,10 @@ export default function BOM() {
             <div className="grid grid-cols-2 gap-4 mb-5">
               <div>
                 <label className="block text-sm font-medium mb-1">
-                  BOM No
+                  BOM Code
                 </label>
                 <input
-                  value={form.bomNo}
+                  value={form.bomCode}
                   readOnly
                   className="w-full border rounded px-3 py-2 bg-slate-100"
                 />
@@ -283,11 +288,11 @@ export default function BOM() {
                   Item No
                 </label>
                 <select
-                  value={form.item}
+                  value={form.parentItem}
                   onChange={(e) =>
                     setForm({
                       ...form,
-                      item: e.target.value,
+                      parentItem: e.target.value,
                     })
                   }
                   required
@@ -296,7 +301,7 @@ export default function BOM() {
                   <option value="">Select Item</option>
                   {items.map((item) => (
                     <option key={item._id} value={item._id}>
-                      {item.itemNo} - {item.itemName}
+                      {item.itemCode} - {item.name}
                     </option>
                   ))}
                 </select>
@@ -358,11 +363,11 @@ export default function BOM() {
                 >
                   <div className="col-span-6">
                     <select
-                      value={comp.componentItem}
+                      value={comp.item}
                       onChange={(e) =>
                         updateComponent(
                           index,
-                          "componentItem",
+                          "item",
                           e.target.value
                         )
                       }
@@ -371,7 +376,7 @@ export default function BOM() {
                       <option value="">Select Component</option>
                       {items.map((item) => (
                         <option key={item._id} value={item._id}>
-                          {item.itemNo} - {item.itemName}
+                          {item.itemCode} - {item.name}
                         </option>
                       ))}
                     </select>
@@ -394,9 +399,9 @@ export default function BOM() {
 
                   <div className="col-span-2">
                     <input
-                      value={comp.uom}
+                      value={comp.unit}
                       onChange={(e) =>
-                        updateComponent(index, "uom", e.target.value)
+                        updateComponent(index, "unit", e.target.value)
                       }
                       className="w-full border rounded px-3 py-2"
                     />

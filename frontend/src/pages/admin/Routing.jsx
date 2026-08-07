@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import Layout from "../../components/Layout";
+import axiosInstance from "../../api/axiosInstance";
 
 const navGroups = [
   { items: [{ label: "Admin Dashboard", path: "/admin/dashboard" }] },
@@ -16,31 +17,154 @@ const navGroups = [
   },
 ];
 
-const routingOperations = [
-  { sequence: 10, operationCode: "OP10", operationName: "Loading", stage: "Start", previousOperation: "-", type: "Automatic", scan: "Serial No" },
-  { sequence: 20, operationCode: "OP20", operationName: "SPI", stage: "Middle", previousOperation: "Loading", type: "Inspection", scan: "Serial No" },
-  { sequence: 30, operationCode: "OP30", operationName: "AOI", stage: "Middle", previousOperation: "SPI", type: "Inspection", scan: "Serial No" },
-  { sequence: 40, operationCode: "OP40", operationName: "Unloading", stage: "Middle", previousOperation: "AOI", type: "Automatic", scan: "Serial No" },
-  { sequence: 50, operationCode: "OP50", operationName: "Manual Insertion", stage: "Middle", previousOperation: "Unloading", type: "Manual", scan: "Serial No" },
-  { sequence: 60, operationCode: "OP60", operationName: "Post Wave Inspection", stage: "Middle", previousOperation: "Manual Insertion", type: "Inspection", scan: "Serial No" },
-  { sequence: 70, operationCode: "OP70", operationName: "Depanelling", stage: "Middle", previousOperation: "Post Wave Inspection", type: "Manual", scan: "Serial No" },
-  { sequence: 80, operationCode: "OP80", operationName: "Visual Inspection", stage: "Middle", previousOperation: "Depanelling", type: "Inspection", scan: "Serial No" },
-  { sequence: 90, operationCode: "OP90", operationName: "Functional Testing", stage: "Middle", previousOperation: "Visual Inspection", type: "Testing", scan: "Serial No" },
-  { sequence: 100, operationCode: "OP100", operationName: "OQC", stage: "Middle", previousOperation: "Functional Testing", type: "Inspection", scan: "Serial No" },
-  { sequence: 110, operationCode: "OP110", operationName: "Packing", stage: "End", previousOperation: "OQC", type: "Manual", scan: "Serial No" },
-];
+const emptyForm = {
+  routingCode: "",
+  bom: "",
+  version: "v1",
+  status: "Active",
+  steps: [],
+};
 
 export default function Routing() {
-  const [routings] = useState([
-    {
-      routingNo: "R00001",
-      itemNo: "PR001",
-      description: "TVSE Thermal Printer",
-      bomNo: "BOM001",
-      version: "Version 1",
-      status: "Active",
-    },
-  ]);
+  const [routings, setRoutings] = useState([]);
+  const [boms, setBoms] = useState([]);
+  const [operations, setOperations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const [showForm, setShowForm] = useState(false);
+  const [editingRouting, setEditingRouting] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    loadBoms();
+    loadOperations();
+    loadRoutings();
+  }, []);
+
+  const loadBoms = async () => {
+    try {
+      const res = await axiosInstance.get("/boms?limit=100");
+      setBoms((res.data.boms || []).filter((b) => b.status === "Active"));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadOperations = async () => {
+    try {
+      const res = await axiosInstance.get("/operations/active/list");
+      setOperations(res.data.operations || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadRoutings = async () => {
+    setLoading(true);
+    try {
+      const res = await axiosInstance.get("/routings?limit=100");
+      setRoutings(res.data.routings || []);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to load routings");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateRoutingCode = () => {
+    const next = routings.length + 1;
+    return `RT-${String(next).padStart(3, "0")}`;
+  };
+
+  const openAddForm = () => {
+    setEditingRouting(null);
+    setForm({ ...emptyForm, routingCode: generateRoutingCode() });
+    setShowForm(true);
+  };
+
+  const openEditForm = (routing) => {
+    setEditingRouting(routing);
+    setForm({
+      routingCode: routing.routingCode,
+      bom: routing.bom?._id || routing.bom,
+      version: routing.version,
+      status: routing.status,
+      steps: routing.steps.map((s) => ({
+        operation: s.operation?._id || s.operation,
+        sequenceNo: s.sequenceNo,
+        standardTime: s.standardTime,
+      })),
+    });
+    setShowForm(true);
+  };
+
+  // Add every active operation as a step, in operationCode order, auto-numbered
+  const addAllOperations = () => {
+    const steps = operations.map((op, index) => ({
+      operation: op._id,
+      sequenceNo: (index + 1) * 10,
+      standardTime: op.standardTime || 0,
+    }));
+    setForm({ ...form, steps });
+  };
+
+  const addStep = () => {
+    const nextSeq = form.steps.length
+      ? Math.max(...form.steps.map((s) => s.sequenceNo)) + 10
+      : 10;
+    setForm({
+      ...form,
+      steps: [...form.steps, { operation: "", sequenceNo: nextSeq, standardTime: 0 }],
+    });
+  };
+
+  const updateStep = (index, field, value) => {
+    const updated = [...form.steps];
+    updated[index][field] = value;
+
+    // Auto-fill standard time from the selected operation's default
+    if (field === "operation") {
+      const op = operations.find((o) => o._id === value);
+      if (op) updated[index].standardTime = op.standardTime;
+    }
+
+    setForm({ ...form, steps: updated });
+  };
+
+  const removeStep = (index) => {
+    setForm({ ...form, steps: form.steps.filter((_, i) => i !== index) });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      if (editingRouting) {
+        await axiosInstance.put(`/routings/${editingRouting._id}`, form);
+      } else {
+        await axiosInstance.post("/routings", form);
+      }
+      setShowForm(false);
+      loadRoutings();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to save routing");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this routing?")) return;
+    try {
+      await axiosInstance.delete(`/routings/${id}`);
+      loadRoutings();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to delete routing");
+    }
+  };
 
   return (
     <Layout portalName="Admin Portal" theme="blue" navGroups={navGroups}>
@@ -49,82 +173,219 @@ export default function Routing() {
           <h1 className="text-2xl font-bold">Routing Master</h1>
           <p className="text-slate-500 text-sm">Item → BOM → Routing</p>
         </div>
-        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg">
+        <button
+          onClick={openAddForm}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg"
+        >
           + Create Routing
         </button>
       </div>
+
+      {error && (
+        <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>
+      )}
 
       <div className="bg-white rounded-xl shadow border overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-100">
             <tr>
-              <th className="px-4 py-3 text-left">Routing No</th>
+              <th className="px-4 py-3 text-left">Routing Code</th>
               <th className="px-4 py-3 text-left">Item No</th>
               <th className="px-4 py-3 text-left">Item No - Description</th>
-              <th className="px-4 py-3 text-left">BOM No</th>
+              <th className="px-4 py-3 text-left">BOM Code</th>
               <th className="px-4 py-3 text-left">Version</th>
+              <th className="px-4 py-3 text-left">Operations</th>
               <th className="px-4 py-3 text-left">Status</th>
               <th className="px-4 py-3 text-left">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {routings.map((routing, index) => (
-              <tr key={index} className="border-t">
-                <td className="px-4 py-3">{routing.routingNo}</td>
-                <td className="px-4 py-3">{routing.itemNo}</td>
-                <td className="px-4 py-3">{routing.description}</td>
-                <td className="px-4 py-3">{routing.bomNo}</td>
-                <td className="px-4 py-3">{routing.version}</td>
-                <td className="px-4 py-3">
-                  <span className="px-2 py-1 rounded bg-green-100 text-green-700 text-xs">
-                    {routing.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3 flex gap-2">
-                  <button className="text-blue-600">
-                    <Pencil size={16} />
-                  </button>
-                  <button className="text-red-600">
-                    <Trash2 size={16} />
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {loading ? (
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
+            ) : routings.length === 0 ? (
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">No routings found.</td></tr>
+            ) : (
+              routings.map((routing) => (
+                <tr key={routing._id} className="border-t align-top">
+                  <td className="px-4 py-3 font-medium text-blue-700">{routing.routingCode}</td>
+                  <td className="px-4 py-3">{routing.item?.itemCode}</td>
+                  <td className="px-4 py-3 max-w-xs">
+                    <span title={routing.item?.description} className="text-slate-500 line-clamp-1">
+                      {routing.item?.name}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">{routing.bom?.bomCode}</td>
+                  <td className="px-4 py-3">{routing.version}</td>
+                  <td className="px-4 py-3">
+                    {routing.steps?.map((s, i) => (
+                      <div key={i} className="text-xs text-slate-600">
+                        {s.sequenceNo}. {s.operation?.operationName || s.operation?.operationCode}
+                      </div>
+                    ))}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`px-2 py-1 rounded text-xs ${
+                        routing.status === "Active"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-slate-200 text-slate-500"
+                      }`}
+                    >
+                      {routing.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 flex gap-2">
+                    <button onClick={() => openEditForm(routing)} className="text-blue-600">
+                      <Pencil size={16} />
+                    </button>
+                    <button onClick={() => handleDelete(routing._id)} className="text-red-600">
+                      <Trash2 size={16} />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
 
-      <div className="bg-white rounded-xl shadow border mt-6 overflow-x-auto">
-        <div className="px-4 py-3 border-b bg-slate-100 font-semibold">
-          Routing Operations
+      {showForm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSubmit}
+            className="bg-white rounded-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+          >
+            <h2 className="text-xl font-bold mb-5">
+              {editingRouting ? "Edit Routing" : "Create Routing"}
+            </h2>
+
+            <div className="grid grid-cols-2 gap-4 mb-5">
+              <div>
+                <label className="block text-sm font-medium mb-1">Routing Code</label>
+                <input
+                  value={form.routingCode}
+                  readOnly
+                  className="w-full border rounded px-3 py-2 bg-slate-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">BOM</label>
+                <select
+                  value={form.bom}
+                  onChange={(e) => setForm({ ...form, bom: e.target.value })}
+                  required
+                  className="w-full border rounded px-3 py-2"
+                >
+                  <option value="">Select BOM</option>
+                  {boms.map((bom) => (
+                    <option key={bom._id} value={bom._id}>
+                      {bom.bomCode} — {bom.parentItem?.itemCode} ({bom.parentItem?.name})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Version</label>
+                <input
+                  value={form.version}
+                  onChange={(e) => setForm({ ...form, version: e.target.value })}
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Status</label>
+                <select
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}
+                  className="w-full border rounded px-3 py-2"
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="border rounded-lg p-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-semibold">Routing Operations</h3>
+                <div className="flex gap-3">
+                  <button type="button" onClick={addAllOperations} className="text-blue-600 text-sm font-medium">
+                    + Add All Active Operations
+                  </button>
+                  <button type="button" onClick={addStep} className="text-blue-600 text-sm font-medium">
+                    + Add Operation
+                  </button>
+                </div>
+              </div>
+
+              {form.steps.length === 0 && (
+                <p className="text-sm text-slate-400 mb-2">No operations added yet.</p>
+              )}
+
+              {form.steps.map((step, index) => (
+                <div key={index} className="grid grid-cols-12 gap-3 items-center mb-3">
+                  <div className="col-span-2">
+                    <input
+                      type="number"
+                      value={step.sequenceNo}
+                      onChange={(e) => updateStep(index, "sequenceNo", Number(e.target.value))}
+                      className="w-full border rounded px-3 py-2"
+                      placeholder="Seq"
+                    />
+                  </div>
+
+                  <div className="col-span-6">
+                    <select
+                      value={step.operation}
+                      onChange={(e) => updateStep(index, "operation", e.target.value)}
+                      className="w-full border rounded px-3 py-2"
+                    >
+                      <option value="">Select Operation</option>
+                      {operations.map((op) => (
+                        <option key={op._id} value={op._id}>
+                          {op.operationCode} - {op.operationName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-span-2">
+                    <input
+                      type="number"
+                      value={step.standardTime}
+                      onChange={(e) => updateStep(index, "standardTime", Number(e.target.value))}
+                      className="w-full border rounded px-3 py-2"
+                      placeholder="Std Time"
+                    />
+                  </div>
+
+                  <div className="col-span-2">
+                    <button type="button" onClick={() => removeStep(index)} className="text-red-600 hover:underline">
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-slate-600">
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="bg-blue-600 text-white px-5 py-2 rounded-lg disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "Save Routing"}
+              </button>
+            </div>
+          </form>
         </div>
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50">
-            <tr>
-              <th className="px-3 py-2 text-left">Sequence</th>
-              <th className="px-3 py-2 text-left">Operation Code</th>
-              <th className="px-3 py-2 text-left">Operation Name</th>
-              <th className="px-3 py-2 text-left">Stage</th>
-              <th className="px-3 py-2 text-left">Previous Operation</th>
-              <th className="px-3 py-2 text-left">Type</th>
-              <th className="px-3 py-2 text-left">Scan</th>
-            </tr>
-          </thead>
-          <tbody>
-            {routingOperations.map((op, index) => (
-              <tr key={index} className="border-t">
-                <td className="px-3 py-2">{op.sequence}</td>
-                <td className="px-3 py-2">{op.operationCode}</td>
-                <td className="px-3 py-2">{op.operationName}</td>
-                <td className="px-3 py-2">{op.stage}</td>
-                <td className="px-3 py-2">{op.previousOperation}</td>
-                <td className="px-3 py-2">{op.type}</td>
-                <td className="px-3 py-2">{op.scan}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      )}
     </Layout>
   );
 }

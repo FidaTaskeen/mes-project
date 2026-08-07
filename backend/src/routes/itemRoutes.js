@@ -24,7 +24,7 @@ router.get('/active/list', async (req, res) => {
 
     const items = await Item.find({
       status: 'Active',
-    }).sort({ itemNo: 1 });
+    }).sort({ itemCode: 1 });
 
     res.status(200).json({
       items,
