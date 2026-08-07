@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Eye } from "lucide-react";
 import Layout from "../../components/Layout";
 import axiosInstance from "../../api/axiosInstance";
 
@@ -47,6 +47,8 @@ export default function Routing() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
 
+  const [viewingRouting, setViewingRouting] = useState(null);
+
   useEffect(() => {
     loadBoms();
     loadOperations();
@@ -83,7 +85,6 @@ export default function Routing() {
     }
   };
 
-  // Client-side filtering (matches whatever the backend already returned)
   const filteredRoutings = routings.filter((r) => {
     if (
       filters.routingCode &&
@@ -316,12 +317,8 @@ export default function Routing() {
                   </td>
                   <td className="px-4 py-3">{routing.bom?.bomCode}</td>
                   <td className="px-4 py-3">{routing.version}</td>
-                  <td className="px-4 py-3">
-                    {routing.steps?.map((s, i) => (
-                      <div key={i} className="text-xs text-slate-600">
-                        {s.sequenceNo}. {s.operation?.operationName || s.operation?.operationCode}
-                      </div>
-                    ))}
+                  <td className="px-4 py-3 text-slate-500">
+                    {routing.steps?.length || 0} operation{routing.steps?.length === 1 ? "" : "s"}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -335,10 +332,17 @@ export default function Routing() {
                     </span>
                   </td>
                   <td className="px-4 py-3 flex gap-2">
-                    <button onClick={() => openEditForm(routing)} className="text-blue-600">
+                    <button
+                      onClick={() => setViewingRouting(routing)}
+                      className="text-slate-600 hover:text-blue-600"
+                      title="View Details"
+                    >
+                      <Eye size={16} />
+                    </button>
+                    <button onClick={() => openEditForm(routing)} className="text-blue-600" title="Edit">
                       <Pencil size={16} />
                     </button>
-                    <button onClick={() => handleDelete(routing._id)} className="text-red-600">
+                    <button onClick={() => handleDelete(routing._id)} className="text-red-600" title="Delete">
                       <Trash2 size={16} />
                     </button>
                   </td>
@@ -348,6 +352,79 @@ export default function Routing() {
           </tbody>
         </table>
       </div>
+
+      {/* View Details Modal */}
+      {viewingRouting && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-5">
+              <div>
+                <h2 className="text-xl font-bold text-blue-700">{viewingRouting.routingCode}</h2>
+                <p className="text-slate-500 text-sm">
+                  {viewingRouting.item?.itemCode} — {viewingRouting.item?.name}
+                </p>
+              </div>
+              <span
+                className={`px-2 py-1 rounded text-xs h-fit ${
+                  viewingRouting.status === "Active"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-slate-200 text-slate-500"
+                }`}
+              >
+                {viewingRouting.status}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-5 text-sm">
+              <div>
+                <div className="text-slate-400 text-xs">BOM Code</div>
+                <div className="font-medium">{viewingRouting.bom?.bomCode || "—"}</div>
+              </div>
+              <div>
+                <div className="text-slate-400 text-xs">Version</div>
+                <div className="font-medium">{viewingRouting.version}</div>
+              </div>
+              <div className="col-span-2">
+                <div className="text-slate-400 text-xs">Description</div>
+                <div className="font-medium">{viewingRouting.item?.description || "—"}</div>
+              </div>
+            </div>
+
+            <h3 className="font-semibold mb-2 text-sm">Routing Operations</h3>
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-100">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Seq</th>
+                    <th className="px-3 py-2 text-left">Operation Code</th>
+                    <th className="px-3 py-2 text-left">Operation Name</th>
+                    <th className="px-3 py-2 text-left">Std Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {viewingRouting.steps?.map((s, i) => (
+                    <tr key={i} className="border-t">
+                      <td className="px-3 py-2">{s.sequenceNo}</td>
+                      <td className="px-3 py-2">{s.operation?.operationCode || "—"}</td>
+                      <td className="px-3 py-2">{s.operation?.operationName || "—"}</td>
+                      <td className="px-3 py-2">{s.standardTime} min</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end mt-5">
+              <button
+                onClick={() => setViewingRouting(null)}
+                className="px-4 py-2 text-sm text-slate-600 border rounded-lg"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
