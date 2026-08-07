@@ -17,7 +17,6 @@ const navGroups = [
   },
 ];
 
-// Preferred display order for operations (matches standard SMT line sequence)
 const OPERATION_ORDER = [
   "LOAD", "SPI", "AOI", "UNLOAD", "MANIN", "PWI", "DEPANEL", "VI", "FT", "DQC", "PACK",
 ];
@@ -44,7 +43,6 @@ export default function Routing() {
   const [error, setError] = useState("");
   const [tab, setTab] = useState("Active");
 
-  // view mode: "list" | "form" | "detail"
   const [view, setView] = useState("list");
   const [editingRouting, setEditingRouting] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -201,7 +199,6 @@ export default function Routing() {
 
   const tabs = ["Active", "Draft", "Inactive"];
 
-  // ---------- LIST VIEW ----------
   if (view === "list") {
     return (
       <Layout portalName="Admin Portal" theme="blue" navGroups={navGroups}>
@@ -337,7 +334,6 @@ export default function Routing() {
     );
   }
 
-  // ---------- DETAIL (VIEW) — read-only, distinct look from the form ----------
   if (view === "detail" && viewingRouting) {
     return (
       <Layout portalName="Admin Portal" theme="blue" navGroups={navGroups}>
@@ -431,7 +427,6 @@ export default function Routing() {
     );
   }
 
-  // ---------- FULL-PAGE CREATE/EDIT FORM ----------
   return (
     <Layout portalName="Admin Portal" theme="blue" navGroups={navGroups}>
       <button onClick={backToList} className="flex items-center gap-1.5 text-sm text-slate-500 mb-4 hover:text-slate-700">
@@ -513,7 +508,6 @@ export default function Routing() {
             </button>
           </div>
 
-          {/* Available operations to pick from, pre-sorted in standard sequence */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-5">
             {operations.map((op) => {
               const selected = form.steps.some((s) => s.operation === op._id);
@@ -532,7 +526,6 @@ export default function Routing() {
             })}
           </div>
 
-          {/* Selected steps, auto-numbered by order */}
           <h3 className="text-sm font-medium mb-2">Routing Sequence ({form.steps.length} operations)</h3>
           {form.steps.length === 0 ? (
             <p className="text-sm text-slate-400">No operations selected yet — click above to add.</p>
