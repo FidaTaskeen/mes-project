@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Pencil, Trash2, Eye, ArrowLeft } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Pencil, Trash2, Eye } from "lucide-react";
 import Layout from "../../components/Layout";
 import axiosInstance from "../../api/axiosInstance";
 
@@ -17,22 +17,31 @@ const navGroups = [
   },
 ];
 
-const OPERATION_ORDER = [
-  "LOAD", "SPI", "AOI", "UNLOAD", "MANIN", "PWI", "DEPANEL", "VI", "FT", "DQC", "PACK",
-];
-
-const orderIndex = (op) => {
-  const idx = OPERATION_ORDER.findIndex((code) => op.operationCode?.toUpperCase().includes(code));
-  return idx === -1 ? 999 : idx;
-};
-
 const emptyForm = {
   routingCode: "",
   bom: "",
-  version: "Version 1",
+  version: "v1",
   status: "Active",
   description: "",
+  inputItemDescription: "",
+  validFrom: "",
+  validTo: "",
+  firstScanningOperation: "",
+  activeOperation: "",
+  consumptionOperation: "",
+  finalOperation: "",
+  setupVerification: false,
+  inventoryValidation: false,
+  sampleRun: false,
   steps: [],
+};
+
+const emptyFilters = {
+  itemNo: "",
+  status: "",
+  description: "",
+  firstScanningOperation: "",
+  finalOperation: "",
 };
 
 export default function Routing() {
@@ -41,534 +50,809 @@ export default function Routing() {
   const [operations, setOperations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState("Active");
 
-  const [view, setView] = useState("list");
+  const [filters, setFilters] = useState(emptyFilters);
+
+  const [showForm, setShowForm] = useState(false);
   const [editingRouting, setEditingRouting] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [saving, setSaving] = useState(false);
+
   const [viewingRouting, setViewingRouting] = useState(null);
 
-  const [filters, setFilters] = useState({ routingCode: "" });
+  useEffect(() => {
+    loadBoms();
+    loadOperations();
+    loadRoutings();
+  }, []);
 
-  const loadData = async () => {
-    setLoading(true);
-    setError("");
+  const loadBoms = async () => {
     try {
-      const params = new URLSearchParams();
-      if (filters.routingCode) params.set("search", filters.routingCode);
-      params.set("status", tab);
-      params.set("limit", "100");
-
-      const [routingsRes, bomsRes, opsRes] = await Promise.all([
-        axiosInstance.get(`/routings?${params.toString()}`),
-        axiosInstance.get("/boms?limit=100"),
-        axiosInstance.get("/operations?limit=100"),
-      ]);
-      setRoutings(routingsRes.data.routings || []);
-      setBoms(bomsRes.data.boms || []);
-      const sortedOps = (opsRes.data.operations || []).slice().sort((a, b) => orderIndex(a) - orderIndex(b));
-      setOperations(sortedOps);
+      const res = await axiosInstance.get("/boms?limit=100");
+      setBoms((res.data.boms || []).filter((b) => b.status === "Active"));
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to load data");
+      console.error(err);
+    }
+  };
+
+  const loadOperations = async () => {
+    try {
+      const res = await axiosInstance.get("/operations/active/list");
+      setOperations(res.data.operations || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadRoutings = async () => {
+    setLoading(true);
+    try {
+      const res = await axiosInstance.get("/routings?limit=100");
+      setRoutings(res.data.routings || []);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to load routings");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  const filteredRoutings = routings.filter((r) => {
+    if (
+      filters.itemNo &&
+      !r.item?.itemCode?.toLowerCase().includes(filters.itemNo.toLowerCase())
+    )
+      return false;
+
+    if (filters.status && r.status !== filters.status) return false;
+
+    if (
+      filters.description &&
+      !r.description?.toLowerCase().includes(filters.description.toLowerCase()) &&
+      !r.item?.name?.toLowerCase().includes(filters.description.toLowerCase())
+    )
+      return false;
+
+    if (
+      filters.firstScanningOperation &&
+      r.firstScanningOperation?._id !== filters.firstScanningOperation
+    )
+      return false;
+
+    if (filters.finalOperation && r.finalOperation?._id !== filters.finalOperation)
+      return false;
+
+    return true;
+  });
+
+  const clearFilters = () => setFilters(emptyFilters);
+
+  const generateRoutingCode = () => {
+    const next = routings.length + 1;
+    return `RT-${String(next).padStart(3, "0")}`;
+  };
 
   const openAddForm = () => {
     setEditingRouting(null);
-    setForm(emptyForm);
-    setView("form");
+    setForm({ ...emptyForm, routingCode: generateRoutingCode() });
+    setShowForm(true);
   };
 
   const openEditForm = (routing) => {
     setEditingRouting(routing);
     setForm({
       routingCode: routing.routingCode,
-      bom: routing.bom?._id || routing.bom || "",
-      version: routing.version || "Version 1",
+      bom: routing.bom?._id || routing.bom,
+      version: routing.version,
       status: routing.status,
       description: routing.description || "",
-      steps: routing.steps
-        .slice()
-        .sort((a, b) => a.sequenceNo - b.sequenceNo)
-        .map((s) => ({
-          operation: s.operation?._id || s.operation,
-          standardTime: s.standardTime,
-        })),
+      inputItemDescription: routing.inputItemDescription || "",
+      validFrom: routing.validFrom ? routing.validFrom.slice(0, 10) : "",
+      validTo: routing.validTo ? routing.validTo.slice(0, 10) : "",
+      firstScanningOperation: routing.firstScanningOperation?._id || "",
+      activeOperation: routing.activeOperation?._id || "",
+      consumptionOperation: routing.consumptionOperation?._id || "",
+      finalOperation: routing.finalOperation?._id || "",
+      setupVerification: !!routing.setupVerification,
+      inventoryValidation: !!routing.inventoryValidation,
+      sampleRun: !!routing.sampleRun,
+      steps: routing.steps.map((s) => ({
+        operation: s.operation?._id || s.operation,
+        sequenceNo: s.sequenceNo,
+        stage: s.stage || "Middle",
+        previousOperation: s.previousOperation?._id || s.previousOperation || "",
+        type: s.type || "No_Scanning",
+        scan: s.scan || "None",
+        standardTime: s.standardTime || 0,
+      })),
     });
-    setView("form");
+    setShowForm(true);
   };
 
-  const openDetail = (routing) => {
-    setViewingRouting(routing);
-    setView("detail");
+  const addAllOperations = () => {
+    const steps = operations.map((op, index) => ({
+      operation: op._id,
+      sequenceNo: (index + 1) * 10,
+      stage: index === 0 ? "Start" : index === operations.length - 1 ? "End" : "Middle",
+      previousOperation: index === 0 ? "" : operations[index - 1]._id,
+      type: "No_Scanning",
+      scan: "None",
+      standardTime: op.standardTime || 0,
+    }));
+    setForm({ ...form, steps });
   };
 
-  const backToList = () => {
-    setView("list");
-    setEditingRouting(null);
-    setViewingRouting(null);
-  };
-
-  const toggleOperationInSteps = (opId) => {
-    setForm((f) => {
-      const exists = f.steps.find((s) => s.operation === opId);
-      if (exists) {
-        return { ...f, steps: f.steps.filter((s) => s.operation !== opId) };
-      }
-      const op = operations.find((o) => o._id === opId);
-      return { ...f, steps: [...f.steps, { operation: opId, standardTime: op?.standardTime || 5 }] };
+  const addStep = () => {
+    const nextSeq = form.steps.length
+      ? Math.max(...form.steps.map((s) => s.sequenceNo)) + 10
+      : 10;
+    setForm({
+      ...form,
+      steps: [
+        ...form.steps,
+        {
+          operation: "",
+          sequenceNo: nextSeq,
+          stage: "Middle",
+          previousOperation: "",
+          type: "No_Scanning",
+          scan: "None",
+          standardTime: 0,
+        },
+      ],
     });
   };
 
-  const moveStep = (index, direction) => {
-    setForm((f) => {
-      const steps = [...f.steps];
-      const newIndex = index + direction;
-      if (newIndex < 0 || newIndex >= steps.length) return f;
-      [steps[index], steps[newIndex]] = [steps[newIndex], steps[index]];
-      return { ...f, steps };
-    });
+  const updateStep = (index, field, value) => {
+    const updated = [...form.steps];
+    updated[index][field] = value;
+
+    if (field === "operation") {
+      const op = operations.find((o) => o._id === value);
+      if (op) updated[index].standardTime = op.standardTime;
+    }
+
+    setForm({ ...form, steps: updated });
   };
 
   const removeStep = (index) => {
-    setForm((f) => ({ ...f, steps: f.steps.filter((_, i) => i !== index) }));
-  };
-
-  const addAllOperationsInOrder = () => {
-    const steps = operations.map((op) => ({ operation: op._id, standardTime: op.standardTime || 5 }));
-    setForm((f) => ({ ...f, steps }));
+    setForm({ ...form, steps: form.steps.filter((_, i) => i !== index) });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSaving(true);
     setError("");
-    if (form.steps.length === 0) {
-      setError("Add at least one operation to the routing.");
-      return;
-    }
-    const payload = {
-      ...form,
-      steps: form.steps.map((s, i) => ({
-        operation: s.operation,
-        sequenceNo: i + 1,
-        standardTime: Number(s.standardTime) || 5,
-      })),
-    };
     try {
       if (editingRouting) {
-        await axiosInstance.put(`/routings/${editingRouting._id}`, payload);
+        await axiosInstance.put(`/routings/${editingRouting._id}`, form);
       } else {
-        await axiosInstance.post("/routings", payload);
+        await axiosInstance.post("/routings", form);
       }
-      backToList();
-      loadData();
+      setShowForm(false);
+      loadRoutings();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to save routing");
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Delete this routing?")) return;
+    if (!window.confirm("Delete this routing?")) return;
     try {
       await axiosInstance.delete(`/routings/${id}`);
-      loadData();
+      loadRoutings();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to delete routing");
     }
   };
 
-  const bomLabel = (bom) => {
-    if (!bom) return "—";
-    if (typeof bom === "object") return bom.bomCode;
-    const found = boms.find((b) => b._id === bom);
-    return found ? found.bomCode : "—";
-  };
-
-  const itemName = (item) => {
-    if (!item) return "—";
-    if (typeof item === "object") return `${item.itemCode} - ${item.name}`;
-    return "—";
-  };
-
-  const tabs = ["Active", "Draft", "Inactive"];
-
-  if (view === "list") {
-    return (
-      <Layout portalName="Admin Portal" theme="blue" navGroups={navGroups}>
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <h1 className="text-2xl font-bold">Routing</h1>
-            <p className="text-slate-500 text-sm">Masters &gt; Routing (built from a BOM)</p>
-          </div>
-          <button
-            onClick={openAddForm}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
-          >
-            + Create New
-          </button>
-        </div>
-
-        {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>}
-
-        <div className="bg-white rounded-xl shadow-sm border p-4 mb-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Routing Code</label>
-              <input
-                value={filters.routingCode}
-                onChange={(e) => setFilters({ ...filters, routingCode: e.target.value })}
-                className="w-full border rounded-lg px-2 py-1.5 text-sm"
-              />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={loadData} className="bg-slate-800 text-white px-4 py-1.5 rounded-lg text-sm font-medium">
-              Search
-            </button>
-            <button
-              onClick={() => {
-                setFilters({ routingCode: "" });
-                loadData();
-              }}
-              className="border px-4 py-1.5 rounded-lg text-sm font-medium text-slate-600"
-            >
-              Refresh
-            </button>
-          </div>
-        </div>
-
-        <div className="flex gap-1 mb-3">
-          {tabs.map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 py-2 text-sm font-medium rounded-t-lg ${
-                tab === t ? "bg-slate-800 text-white" : "bg-white text-slate-600 border"
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
-          <table className="w-full text-sm whitespace-nowrap">
-            <thead className="bg-slate-100 text-left">
-              <tr>
-                <th className="px-4 py-3">Routing Code</th>
-                <th className="px-4 py-3">BOM</th>
-                <th className="px-4 py-3">Item</th>
-                <th className="px-4 py-3">Version</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Created On</th>
-                <th className="px-4 py-3">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan="7" className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
-              ) : routings.length === 0 ? (
-                <tr><td colSpan="7" className="px-4 py-6 text-center text-slate-400">No routings found.</td></tr>
-              ) : (
-                routings.map((routing) => (
-                  <tr key={routing._id} className="border-t hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium">{routing.routingCode}</td>
-                    <td className="px-4 py-3">{bomLabel(routing.bom)}</td>
-                    <td className="px-4 py-3">{itemName(routing.item)}</td>
-                    <td className="px-4 py-3">{routing.version}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`px-2 py-0.5 rounded text-xs ${
-                          routing.status === "Active"
-                            ? "bg-green-100 text-green-700"
-                            : routing.status === "Draft"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-slate-200 text-slate-500"
-                        }`}
-                      >
-                        {routing.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {routing.createdAt ? new Date(routing.createdAt).toLocaleDateString() : "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openDetail(routing)}
-                          className="w-7 h-7 rounded bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200"
-                          title="View"
-                        >
-                          <Eye size={14} />
-                        </button>
-                        <button
-                          onClick={() => openEditForm(routing)}
-                          className="w-7 h-7 rounded bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-blue-50 hover:text-blue-600"
-                          title="Edit"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(routing._id)}
-                          className="w-7 h-7 rounded bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-red-50 hover:text-red-600"
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Layout>
-    );
-  }
-
-  if (view === "detail" && viewingRouting) {
-    return (
-      <Layout portalName="Admin Portal" theme="blue" navGroups={navGroups}>
-        <button onClick={backToList} className="flex items-center gap-1.5 text-sm text-slate-500 mb-4 hover:text-slate-700">
-          <ArrowLeft size={14} /> Back to Routing List
-        </button>
-
-        <div className="bg-white rounded-xl shadow-sm border p-6 mb-5">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <h1 className="text-xl font-bold">{viewingRouting.routingCode}</h1>
-              <p className="text-slate-500 text-sm">{itemName(viewingRouting.item)}</p>
-            </div>
-            <span
-              className={`px-3 py-1 rounded-full text-xs font-medium ${
-                viewingRouting.status === "Active"
-                  ? "bg-green-100 text-green-700"
-                  : viewingRouting.status === "Draft"
-                  ? "bg-amber-100 text-amber-700"
-                  : "bg-slate-200 text-slate-500"
-              }`}
-            >
-              {viewingRouting.status}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm border-t pt-4">
-            <div>
-              <p className="text-slate-400 text-xs">BOM</p>
-              <p className="font-medium">{bomLabel(viewingRouting.bom)}</p>
-            </div>
-            <div>
-              <p className="text-slate-400 text-xs">Version</p>
-              <p className="font-medium">{viewingRouting.version}</p>
-            </div>
-            <div>
-              <p className="text-slate-400 text-xs">Total Operations</p>
-              <p className="font-medium">{viewingRouting.steps.length}</p>
-            </div>
-            <div>
-              <p className="text-slate-400 text-xs">Created On</p>
-              <p className="font-medium">
-                {viewingRouting.createdAt ? new Date(viewingRouting.createdAt).toLocaleDateString() : "—"}
-              </p>
-            </div>
-          </div>
-          {viewingRouting.description && (
-            <div className="mt-3 text-sm">
-              <p className="text-slate-400 text-xs">Description</p>
-              <p>{viewingRouting.description}</p>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-          <div className="px-5 py-3 border-b font-medium text-sm">Operation Sequence</div>
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left">
-              <tr>
-                <th className="px-4 py-2 w-16">S.No</th>
-                <th className="px-4 py-2">Operation</th>
-                <th className="px-4 py-2">Work Center</th>
-                <th className="px-4 py-2">Standard Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {viewingRouting.steps
-                .slice()
-                .sort((a, b) => a.sequenceNo - b.sequenceNo)
-                .map((s, i) => {
-                  const op = typeof s.operation === "object" ? s.operation : operations.find((o) => o._id === s.operation);
-                  return (
-                    <tr key={i} className="border-t">
-                      <td className="px-4 py-2">
-                        <span className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 text-xs font-medium flex items-center justify-center">
-                          {s.sequenceNo}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 font-medium">
-                        {op ? `${op.operationCode} - ${op.operationName}` : "—"}
-                      </td>
-                      <td className="px-4 py-2 text-slate-500">{op?.workCenter || "—"}</td>
-                      <td className="px-4 py-2 text-slate-500">{s.standardTime} min</td>
-                    </tr>
-                  );
-                })}
-            </tbody>
-          </table>
-        </div>
-      </Layout>
-    );
-  }
+  const opLabel = (op) => (op ? `${op.operationCode} - ${op.operationName}` : "—");
 
   return (
     <Layout portalName="Admin Portal" theme="blue" navGroups={navGroups}>
-      <button onClick={backToList} className="flex items-center gap-1.5 text-sm text-slate-500 mb-4 hover:text-slate-700">
-        <ArrowLeft size={14} /> Back to Routing List
-      </button>
-
-      <h1 className="text-xl font-bold mb-5">{editingRouting ? "Edit Routing" : "Create Routing"}</h1>
-
-      {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>}
-
-      <form onSubmit={handleSubmit}>
-        <div className="bg-white rounded-xl shadow-sm border p-6 mb-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Routing Code</label>
-              <input
-                value={form.routingCode}
-                onChange={(e) => setForm({ ...form, routingCode: e.target.value })}
-                required
-                className="w-full border rounded-lg px-3 py-2"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">BOM</label>
-              <select
-                value={form.bom}
-                onChange={(e) => setForm({ ...form, bom: e.target.value })}
-                required
-                className="w-full border rounded-lg px-3 py-2"
-              >
-                <option value="">-- Select BOM --</option>
-                {boms.map((b) => (
-                  <option key={b._id} value={b._id}>
-                    {b.bomCode} ({b.parentItem?.itemCode})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Version</label>
-              <input
-                value={form.version}
-                onChange={(e) => setForm({ ...form, version: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Status</label>
-              <select
-                value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2"
-              >
-                <option value="Active">Active</option>
-                <option value="Draft">Draft</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-            </div>
-            <div className="sm:col-span-2">
-              <label className="block text-sm font-medium mb-1">Description</label>
-              <input
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2"
-              />
-            </div>
-          </div>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Routing Master</h1>
+          <p className="text-slate-500 text-sm">Item → BOM → Routing</p>
         </div>
+        <button
+          onClick={openAddForm}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg"
+        >
+          + Create Routing
+        </button>
+      </div>
 
-        <div className="bg-white rounded-xl shadow-sm border p-6 mb-5">
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="font-medium">Select Operations (in order)</h2>
-            <button
-              type="button"
-              onClick={addAllOperationsInOrder}
-              className="text-blue-600 text-sm font-medium hover:underline"
+      {error && (
+        <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>
+      )}
+
+      {/* Filter bar */}
+      <div className="bg-white rounded-xl shadow-sm border p-4 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Item No</label>
+            <input
+              value={filters.itemNo}
+              onChange={(e) => setFilters({ ...filters, itemNo: e.target.value })}
+              className="w-full border rounded-lg px-2 py-1.5 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              className="w-full border rounded-lg px-2 py-1.5 text-sm"
             >
-              + Add All Operations In Order
-            </button>
+              <option value="">All</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
           </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-5">
-            {operations.map((op) => {
-              const selected = form.steps.some((s) => s.operation === op._id);
-              return (
-                <button
-                  type="button"
-                  key={op._id}
-                  onClick={() => toggleOperationInSteps(op._id)}
-                  className={`text-left border rounded-lg px-3 py-2 text-sm ${
-                    selected ? "border-blue-500 bg-blue-50 text-blue-700" : "hover:border-slate-300"
-                  }`}
-                >
-                  {op.operationCode} - {op.operationName}
-                </button>
-              );
-            })}
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+            <input
+              value={filters.description}
+              onChange={(e) => setFilters({ ...filters, description: e.target.value })}
+              className="w-full border rounded-lg px-2 py-1.5 text-sm"
+            />
           </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              First Scanning Operation
+            </label>
+            <select
+              value={filters.firstScanningOperation}
+              onChange={(e) =>
+                setFilters({ ...filters, firstScanningOperation: e.target.value })
+              }
+              className="w-full border rounded-lg px-2 py-1.5 text-sm"
+            >
+              <option value="">All</option>
+              {operations.map((op) => (
+                <option key={op._id} value={op._id}>
+                  {op.operationCode}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              Final Operation
+            </label>
+            <select
+              value={filters.finalOperation}
+              onChange={(e) => setFilters({ ...filters, finalOperation: e.target.value })}
+              className="w-full border rounded-lg px-2 py-1.5 text-sm"
+            >
+              <option value="">All</option>
+              {operations.map((op) => (
+                <option key={op._id} value={op._id}>
+                  {op.operationCode}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={clearFilters}
+            className="border px-4 py-1.5 rounded-lg text-sm font-medium text-slate-600"
+          >
+            Clear Filters
+          </button>
+        </div>
+      </div>
 
-          <h3 className="text-sm font-medium mb-2">Routing Sequence ({form.steps.length} operations)</h3>
-          {form.steps.length === 0 ? (
-            <p className="text-sm text-slate-400">No operations selected yet — click above to add.</p>
-          ) : (
-            <div className="space-y-2">
-              {form.steps.map((step, index) => {
-                const op = operations.find((o) => o._id === step.operation);
-                return (
-                  <div key={index} className="flex items-center gap-3 border rounded-lg px-3 py-2">
-                    <span className="w-7 h-7 rounded-full bg-blue-50 text-blue-600 text-xs font-medium flex items-center justify-center shrink-0">
-                      {index + 1}
+      <div className="bg-white rounded-xl shadow border overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-100">
+            <tr>
+              <th className="px-4 py-3 text-left">Routing Code</th>
+              <th className="px-4 py-3 text-left">Item No</th>
+              <th className="px-4 py-3 text-left">Item No - Description</th>
+              <th className="px-4 py-3 text-left">BOM Code</th>
+              <th className="px-4 py-3 text-left">Version</th>
+              <th className="px-4 py-3 text-left">Operations</th>
+              <th className="px-4 py-3 text-left">Status</th>
+              <th className="px-4 py-3 text-left">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
+            ) : filteredRoutings.length === 0 ? (
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">No routings found.</td></tr>
+            ) : (
+              filteredRoutings.map((routing) => (
+                <tr key={routing._id} className="border-t align-top">
+                  <td className="px-4 py-3 font-medium text-blue-700">{routing.routingCode}</td>
+                  <td className="px-4 py-3">{routing.item?.itemCode}</td>
+                  <td className="px-4 py-3 max-w-xs">
+                    <span title={routing.item?.description} className="text-slate-500 line-clamp-1">
+                      {routing.item?.name}
                     </span>
-                    <span className="flex-1 text-sm">{op ? `${op.operationCode} - ${op.operationName}` : "—"}</span>
-                    <input
-                      type="number"
-                      value={step.standardTime}
-                      onChange={(e) => {
-                        const steps = [...form.steps];
-                        steps[index].standardTime = e.target.value;
-                        setForm({ ...form, steps });
-                      }}
-                      className="w-20 border rounded px-2 py-1 text-sm"
-                      title="Standard time (min)"
-                    />
-                    <button type="button" onClick={() => moveStep(index, -1)} className="text-slate-400 hover:text-slate-700 text-sm px-1">↑</button>
-                    <button type="button" onClick={() => moveStep(index, 1)} className="text-slate-400 hover:text-slate-700 text-sm px-1">↓</button>
-                    <button type="button" onClick={() => removeStep(index)} className="text-red-500 hover:text-red-700 text-sm px-1">✕</button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                  </td>
+                  <td className="px-4 py-3">{routing.bom?.bomCode}</td>
+                  <td className="px-4 py-3">{routing.version}</td>
+                  <td className="px-4 py-3 text-slate-500">
+                    {routing.steps?.length || 0} operation{routing.steps?.length === 1 ? "" : "s"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`px-2 py-1 rounded text-xs ${
+                        routing.status === "Active"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-slate-200 text-slate-500"
+                      }`}
+                    >
+                      {routing.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 flex gap-2">
+                    <button
+                      onClick={() => setViewingRouting(routing)}
+                      className="text-slate-600 hover:text-blue-600"
+                      title="View Details"
+                    >
+                      <Eye size={16} />
+                    </button>
+                    <button onClick={() => openEditForm(routing)} className="text-blue-600" title="Edit">
+                      <Pencil size={16} />
+                    </button>
+                    <button onClick={() => handleDelete(routing._id)} className="text-red-600" title="Delete">
+                      <Trash2 size={16} />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
-        <div className="flex justify-end gap-3">
-          <button type="button" onClick={backToList} className="px-4 py-2 text-sm text-slate-600">
-            Cancel
-          </button>
-          <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium">
-            Save Routing
-          </button>
+      {/* View Details Modal */}
+      {viewingRouting && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-5xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-5">
+              <div>
+                <h2 className="text-xl font-bold text-blue-700">{viewingRouting.routingCode}</h2>
+                <p className="text-slate-500 text-sm">
+                  {viewingRouting.item?.itemCode} — {viewingRouting.item?.name}
+                </p>
+              </div>
+              <span
+                className={`px-2 py-1 rounded text-xs h-fit ${
+                  viewingRouting.status === "Active"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-slate-200 text-slate-500"
+                }`}
+              >
+                {viewingRouting.status}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 text-sm">
+              <div>
+                <div className="text-slate-400 text-xs">BOM Code</div>
+                <div className="font-medium">{viewingRouting.bom?.bomCode || "—"}</div>
+              </div>
+              <div>
+                <div className="text-slate-400 text-xs">Version</div>
+                <div className="font-medium">{viewingRouting.version}</div>
+              </div>
+              <div>
+                <div className="text-slate-400 text-xs">Valid From</div>
+                <div className="font-medium">
+                  {viewingRouting.validFrom ? viewingRouting.validFrom.slice(0, 10) : "—"}
+                </div>
+              </div>
+              <div>
+                <div className="text-slate-400 text-xs">Valid To</div>
+                <div className="font-medium">
+                  {viewingRouting.validTo ? viewingRouting.validTo.slice(0, 10) : "—"}
+                </div>
+              </div>
+              <div className="col-span-2">
+                <div className="text-slate-400 text-xs">Description</div>
+                <div className="font-medium">{viewingRouting.description || "—"}</div>
+              </div>
+              <div className="col-span-2">
+                <div className="text-slate-400 text-xs">Input Item Description</div>
+                <div className="font-medium">{viewingRouting.inputItemDescription || "—"}</div>
+              </div>
+              <div>
+                <div className="text-slate-400 text-xs">First Scanning Operation</div>
+                <div className="font-medium">{opLabel(viewingRouting.firstScanningOperation)}</div>
+              </div>
+              <div>
+                <div className="text-slate-400 text-xs">Active Operation</div>
+                <div className="font-medium">{opLabel(viewingRouting.activeOperation)}</div>
+              </div>
+              <div>
+                <div className="text-slate-400 text-xs">Consumption Operation</div>
+                <div className="font-medium">{opLabel(viewingRouting.consumptionOperation)}</div>
+              </div>
+              <div>
+                <div className="text-slate-400 text-xs">Final Operation</div>
+                <div className="font-medium">{opLabel(viewingRouting.finalOperation)}</div>
+              </div>
+              <div className="col-span-2 flex gap-4 text-xs">
+                <span className={viewingRouting.setupVerification ? "text-green-700" : "text-slate-400"}>
+                  {viewingRouting.setupVerification ? "✓" : "✗"} Setup Verification
+                </span>
+                <span className={viewingRouting.inventoryValidation ? "text-green-700" : "text-slate-400"}>
+                  {viewingRouting.inventoryValidation ? "✓" : "✗"} Inventory Validation
+                </span>
+                <span className={viewingRouting.sampleRun ? "text-green-700" : "text-slate-400"}>
+                  {viewingRouting.sampleRun ? "✓" : "✗"} Sample Run
+                </span>
+              </div>
+            </div>
+
+            <h3 className="font-semibold mb-2 text-sm">Routing Lines</h3>
+            <div className="border rounded-lg overflow-x-auto">
+              <table className="w-full text-sm whitespace-nowrap">
+                <thead className="bg-slate-100">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Seq</th>
+                    <th className="px-3 py-2 text-left">Operation</th>
+                    <th className="px-3 py-2 text-left">Stage</th>
+                    <th className="px-3 py-2 text-left">Previous Operation</th>
+                    <th className="px-3 py-2 text-left">Type</th>
+                    <th className="px-3 py-2 text-left">Scan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {viewingRouting.steps?.map((s, i) => (
+                    <tr key={i} className="border-t">
+                      <td className="px-3 py-2">{s.sequenceNo}</td>
+                      <td className="px-3 py-2">{opLabel(s.operation)}</td>
+                      <td className="px-3 py-2">{s.stage}</td>
+                      <td className="px-3 py-2">{opLabel(s.previousOperation)}</td>
+                      <td className="px-3 py-2">{s.type}</td>
+                      <td className="px-3 py-2">{s.scan}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end mt-5">
+              <button
+                onClick={() => setViewingRouting(null)}
+                className="px-4 py-2 text-sm text-slate-600 border rounded-lg"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
-      </form>
+      )}
+
+      {/* Create / Edit Form */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSubmit}
+            className="bg-white rounded-xl p-6 w-full max-w-5xl max-h-[90vh] overflow-y-auto"
+          >
+            <h2 className="text-xl font-bold mb-5">
+              {editingRouting ? "Edit Routing" : "Create Routing"}
+            </h2>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5">
+              <div>
+                <label className="block text-sm font-medium mb-1">Routing Code</label>
+                <input
+                  value={form.routingCode}
+                  readOnly
+                  className="w-full border rounded px-3 py-2 bg-slate-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">BOM</label>
+                <select
+                  value={form.bom}
+                  onChange={(e) => setForm({ ...form, bom: e.target.value })}
+                  required
+                  className="w-full border rounded px-3 py-2"
+                >
+                  <option value="">Select BOM</option>
+                  {boms.map((bom) => (
+                    <option key={bom._id} value={bom._id}>
+                      {bom.bomCode} — {bom.parentItem?.itemCode} ({bom.parentItem?.name})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Version</label>
+                <input
+                  value={form.version}
+                  onChange={(e) => setForm({ ...form, version: e.target.value })}
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Status</label>
+                <select
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}
+                  className="w-full border rounded px-3 py-2"
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Valid From</label>
+                <input
+                  type="date"
+                  value={form.validFrom}
+                  onChange={(e) => setForm({ ...form, validFrom: e.target.value })}
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Valid To</label>
+                <input
+                  type="date"
+                  value={form.validTo}
+                  onChange={(e) => setForm({ ...form, validTo: e.target.value })}
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+
+              <div className="col-span-2 md:col-span-3">
+                <label className="block text-sm font-medium mb-1">Description</label>
+                <input
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+
+              <div className="col-span-2 md:col-span-3">
+                <label className="block text-sm font-medium mb-1">Input Item Description</label>
+                <input
+                  value={form.inputItemDescription}
+                  onChange={(e) => setForm({ ...form, inputItemDescription: e.target.value })}
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">First Scanning Operation</label>
+                <select
+                  value={form.firstScanningOperation}
+                  onChange={(e) => setForm({ ...form, firstScanningOperation: e.target.value })}
+                  className="w-full border rounded px-3 py-2"
+                >
+                  <option value="">None</option>
+                  {operations.map((op) => (
+                    <option key={op._id} value={op._id}>
+                      {op.operationCode} - {op.operationName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Active Operation</label>
+                <select
+                  value={form.activeOperation}
+                  onChange={(e) => setForm({ ...form, activeOperation: e.target.value })}
+                  className="w-full border rounded px-3 py-2"
+                >
+                  <option value="">None</option>
+                  {operations.map((op) => (
+                    <option key={op._id} value={op._id}>
+                      {op.operationCode} - {op.operationName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Consumption Operation</label>
+                <select
+                  value={form.consumptionOperation}
+                  onChange={(e) => setForm({ ...form, consumptionOperation: e.target.value })}
+                  className="w-full border rounded px-3 py-2"
+                >
+                  <option value="">None</option>
+                  {operations.map((op) => (
+                    <option key={op._id} value={op._id}>
+                      {op.operationCode} - {op.operationName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Final Operation</label>
+                <select
+                  value={form.finalOperation}
+                  onChange={(e) => setForm({ ...form, finalOperation: e.target.value })}
+                  className="w-full border rounded px-3 py-2"
+                >
+                  <option value="">None</option>
+                  {operations.map((op) => (
+                    <option key={op._id} value={op._id}>
+                      {op.operationCode} - {op.operationName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="col-span-2 md:col-span-3 flex gap-6 items-center pt-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.setupVerification}
+                    onChange={(e) => setForm({ ...form, setupVerification: e.target.checked })}
+                  />
+                  Setup Verification
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.inventoryValidation}
+                    onChange={(e) => setForm({ ...form, inventoryValidation: e.target.checked })}
+                  />
+                  Inventory Validation
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.sampleRun}
+                    onChange={(e) => setForm({ ...form, sampleRun: e.target.checked })}
+                  />
+                  Sample Run
+                </label>
+              </div>
+            </div>
+
+            <div className="border rounded-lg p-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-semibold">Routing Lines ({form.steps.length})</h3>
+                <div className="flex gap-3">
+                  <button type="button" onClick={addAllOperations} className="text-blue-600 text-sm font-medium">
+                    + Add All Active Operations
+                  </button>
+                  <button type="button" onClick={addStep} className="text-blue-600 text-sm font-medium">
+                    + Add Line
+                  </button>
+                </div>
+              </div>
+
+              {form.steps.length === 0 && (
+                <p className="text-sm text-slate-400 mb-2">No routing lines added yet.</p>
+              )}
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-slate-500">
+                      <th className="pb-2 pr-2 w-16">Seq</th>
+                      <th className="pb-2 pr-2 min-w-[180px]">Operation</th>
+                      <th className="pb-2 pr-2 w-28">Stage</th>
+                      <th className="pb-2 pr-2 min-w-[180px]">Previous Operation</th>
+                      <th className="pb-2 pr-2 w-36">Type</th>
+                      <th className="pb-2 pr-2 w-32">Scan</th>
+                      <th className="pb-2 w-16"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {form.steps.map((step, index) => (
+                      <tr key={index} className="align-top">
+                        <td className="pr-2 pb-2">
+                          <input
+                            type="number"
+                            value={step.sequenceNo}
+                            onChange={(e) => updateStep(index, "sequenceNo", Number(e.target.value))}
+                            className="w-full border rounded px-2 py-1.5"
+                          />
+                        </td>
+                        <td className="pr-2 pb-2">
+                          <select
+                            value={step.operation}
+                            onChange={(e) => updateStep(index, "operation", e.target.value)}
+                            className="w-full border rounded px-2 py-1.5"
+                          >
+                            <option value="">Select Operation</option>
+                            {operations.map((op) => (
+                              <option key={op._id} value={op._id}>
+                                {op.operationCode} - {op.operationName}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="pr-2 pb-2">
+                          <select
+                            value={step.stage}
+                            onChange={(e) => updateStep(index, "stage", e.target.value)}
+                            className="w-full border rounded px-2 py-1.5"
+                          >
+                            <option value="Start">Start</option>
+                            <option value="Middle">Middle</option>
+                            <option value="End">End</option>
+                          </select>
+                        </td>
+                        <td className="pr-2 pb-2">
+                          <select
+                            value={step.previousOperation}
+                            onChange={(e) => updateStep(index, "previousOperation", e.target.value)}
+                            className="w-full border rounded px-2 py-1.5"
+                          >
+                            <option value="">None</option>
+                            {operations.map((op) => (
+                              <option key={op._id} value={op._id}>
+                                {op.operationCode} - {op.operationName}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="pr-2 pb-2">
+                          <select
+                            value={step.type}
+                            onChange={(e) => updateStep(index, "type", e.target.value)}
+                            className="w-full border rounded px-2 py-1.5"
+                          >
+                            <option value="Scanning">Scanning</option>
+                            <option value="No_Scanning">No_Scanning</option>
+                          </select>
+                        </td>
+                        <td className="pr-2 pb-2">
+                          <select
+                            value={step.scan}
+                            onChange={(e) => updateStep(index, "scan", e.target.value)}
+                            className="w-full border rounded px-2 py-1.5"
+                          >
+                            <option value="Serial No">Serial No</option>
+                            <option value="None">None</option>
+                          </select>
+                        </td>
+                        <td className="pb-2">
+                          <button
+                            type="button"
+                            onClick={() => removeStep(index)}
+                            className="text-red-600 hover:underline text-xs"
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-slate-600">
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="bg-blue-600 text-white px-5 py-2 rounded-lg disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "Save Routing"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </Layout>
   );
 }
