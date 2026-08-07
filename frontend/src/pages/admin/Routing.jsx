@@ -393,25 +393,23 @@ export default function Routing() {
             <h3 className="font-semibold mb-2 text-sm">Routing Operations</h3>
             <div className="border rounded-lg overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-slate-100">
-                  <tr>
-                    <th className="px-3 py-2 text-left">Seq</th>
-                    <th className="px-3 py-2 text-left">Operation Code</th>
-                    <th className="px-3 py-2 text-left">Operation Name</th>
-                    <th className="px-3 py-2 text-left">Std Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {viewingRouting.steps?.map((s, i) => (
-                    <tr key={i} className="border-t">
-                      <td className="px-3 py-2">{s.sequenceNo}</td>
-                      <td className="px-3 py-2">{s.operation?.operationCode || "—"}</td>
-                      <td className="px-3 py-2">{s.operation?.operationName || "—"}</td>
-                      <td className="px-3 py-2">{s.standardTime} min</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+  <thead className="bg-slate-100">
+    <tr>
+      <th className="px-3 py-2 text-left">Seq</th>
+      <th className="px-3 py-2 text-left">Operation Code</th>
+      <th className="px-3 py-2 text-left">Operation Name</th>
+    </tr>
+  </thead>
+  <tbody>
+    {viewingRouting.steps?.map((s, i) => (
+      <tr key={i} className="border-t">
+        <td className="px-3 py-2">{s.sequenceNo}</td>
+        <td className="px-3 py-2">{s.operation?.operationCode || "—"}</td>
+        <td className="px-3 py-2">{s.operation?.operationName || "—"}</td>
+      </tr>
+    ))}
+  </tbody>
+</table>
             </div>
 
             <div className="flex justify-end mt-5">
