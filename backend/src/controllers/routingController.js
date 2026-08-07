@@ -35,8 +35,8 @@ exports.createRouting = async (req, res) => {
 
     const populated = await routing.populate(['item', 'bom', 'steps.operation']);
     res.status(201).json({ message: 'Routing created successfully', routing: populated });
-  } catch (err) {
-    console.error('Create routing error:', err.message);
+ } catch (err) {
+    console.error('Create routing error:', err.stack);
     res.status(500).json({ message: err.message || 'Something went wrong. Please try again.' });
   }
 };
