@@ -20,7 +20,6 @@ const routingStepSchema = new mongoose.Schema(
     previousOperation: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Operation',
-      default: null,
     },
     type: {
       type: String,
@@ -75,75 +74,20 @@ const routingSchema = new mongoose.Schema(
       default: 'Active',
     },
 
-    plant: {
-      type: String,
-      default: '',
-      trim: true,
-    },
-
-    shopfloor: {
-      type: String,
-      default: '',
-      trim: true,
-    },
-
     description: {
       type: String,
       default: '',
       trim: true,
     },
 
-    inputItemDescription: {
-      type: String,
-      default: '',
-      trim: true,
-    },
-
-    validFrom: {
-      type: Date,
-    },
-
-    validTo: {
-      type: Date,
-    },
-
     firstScanningOperation: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Operation',
-      default: null,
     },
 
-    activeOperation: {
+    lastScanOperation: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Operation',
-      default: null,
-    },
-
-    consumptionOperation: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Operation',
-      default: null,
-    },
-
-    finalOperation: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Operation',
-      default: null,
-    },
-
-    setupVerification: {
-      type: Boolean,
-      default: false,
-    },
-
-    inventoryValidation: {
-      type: Boolean,
-      default: false,
-    },
-
-    sampleRun: {
-      type: Boolean,
-      default: false,
     },
 
     steps: {
@@ -158,15 +102,21 @@ const routingSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
     },
+
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
   },
   { timestamps: true }
 );
 
-routingSchema.pre('save', function () {
+routingSchema.pre('save', function (next) {
   const seq = this.steps.map((s) => s.sequenceNo);
   if (new Set(seq).size !== seq.length) {
-    throw new Error('Sequence numbers must be unique');
+    return next(new Error('Sequence numbers must be unique'));
   }
+  next();
 });
 
 module.exports = mongoose.model('Routing', routingSchema);

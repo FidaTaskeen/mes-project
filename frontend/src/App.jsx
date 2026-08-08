@@ -28,6 +28,8 @@ import MyPerformance from "./pages/operator/MyPerformance";
 import BOM from "./pages/admin/BOM";
 import Traceability from "./pages/supervisor/Traceability";
 import Routing from "./pages/admin/Routing";
+import RoutingForm from "./pages/admin/RoutingForm";
+import RoutingView from "./pages/admin/RoutingView";
 
 export default function App() {
   return (
@@ -118,6 +120,30 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/admin/routing/create"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <RoutingForm />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/routing/edit/:id"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <RoutingForm />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/routing/view/:id"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <RoutingView />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Supervisor routes */}
           <Route
@@ -186,7 +212,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-         <Route
+          <Route
             path="/operator/scan"
             element={
               <ProtectedRoute allowedRoles={["operator"]}>
