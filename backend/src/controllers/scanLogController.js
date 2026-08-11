@@ -158,3 +158,20 @@ exports.getScanLogs = async (req, res) => {
     res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
 };
+// @route  GET /api/scanlogs/my-stats
+exports.getMyStats = async (req, res) => {
+  try {
+    const logs = await ScanLog.find({ scannedBy: req.user.id });
+    const pass = logs.filter((l) => l.status === 'Pass').length;
+    const fail = logs.filter((l) => l.status === 'Fail').length;
+    const total = logs.length;
+    const passRate = total > 0 ? ((pass / total) * 100).toFixed(2) : '0.00';
+
+    res.status(200).json({
+      stats: { totalScans: total, passCount: pass, failCount: fail, passRate: Number(passRate) },
+    });
+  } catch (err) {
+    console.error('My stats error:', err.message);
+    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+  }
+};

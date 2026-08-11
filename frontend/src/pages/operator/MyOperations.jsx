@@ -1,4 +1,8 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Settings2 } from "lucide-react";
 import Layout from "../../components/Layout";
+import axiosInstance from "../../api/axiosInstance";
 
 const navGroups = [
   {
@@ -13,60 +17,70 @@ const navGroups = [
   },
 ];
 
-// Mock data — later comes from whichever job order was scanned
-const currentJobOrder = {
-  jobOrderNo: "JO-000124",
-  currentOperation: "Welding",
-  nextOperation: "Painting",
-  sequence: [
-    { seq: 1, operation: "Cutting", status: "Completed" },
-    { seq: 2, operation: "Welding", status: "InProgress" },
-    { seq: 3, operation: "Painting", status: "Pending" },
-    { seq: 4, operation: "Quality Check", status: "Pending" },
-  ],
-  workInstructions: "Ensure weld joints are inspected before moving to painting. Use standard voltage settings for Bracket Assembly (see SOP-014).",
-};
-
-const statusColors = {
-  Completed: "bg-green-100 text-green-700",
-  InProgress: "bg-yellow-100 text-yellow-700",
-  Pending: "bg-slate-200 text-slate-500",
-};
-
 export default function MyOperations() {
+  const [operations, setOperations] = useState([]);
+  const [queue, setQueue] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const [meRes, queueRes] = await Promise.all([
+          axiosInstance.get("/auth/me"),
+          axiosInstance.get("/joborders/my-queue"),
+        ]);
+        setOperations(meRes.data.user.assignedOperations || []);
+        setQueue(queueRes.data.queue || []);
+      } catch (err) {
+        setError(err.response?.data?.message || "Failed to load operations");
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const countForOp = (opId) => queue.filter((q) => q.currentOperation?._id === opId).length;
+
   return (
     <Layout portalName="Operator Portal" theme="purple" navGroups={navGroups}>
-      <h1 className="text-2xl font-bold mb-6">My Operations</h1>
+      <h1 className="text-2xl font-bold mb-1">My Operations</h1>
+      <p className="text-slate-500 text-sm mb-5">Operations assigned to you, and pending job orders at each.</p>
 
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <p className="text-xs text-slate-400 mb-1">Current Operation</p>
-          <p className="text-lg font-bold text-purple-700">{currentJobOrder.currentOperation}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <p className="text-xs text-slate-400 mb-1">Next Operation</p>
-          <p className="text-lg font-bold">{currentJobOrder.nextOperation}</p>
-        </div>
-      </div>
+      {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>}
 
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="font-medium mb-3">Operation Sequence</h2>
-        <div className="space-y-2">
-          {currentJobOrder.sequence.map((step) => (
-            <div key={step.seq} className="flex justify-between items-center text-sm border-b pb-2 last:border-0">
-              <span>{step.seq}. {step.operation}</span>
-              <span className={`px-2 py-1 rounded text-xs ${statusColors[step.status]}`}>
-                {step.status}
-              </span>
-            </div>
+      {loading ? (
+        <p className="text-slate-500">Loading...</p>
+      ) : operations.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-slate-400 text-sm">
+          No operations assigned yet. Contact your admin.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {operations.map((op) => (
+            <button
+              key={op._id}
+              onClick={() => navigate(`/operator/operation/${op._id}`)}
+              className="bg-white rounded-xl shadow-sm border p-5 text-left hover:border-purple-400 hover:shadow-md transition"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+                  <Settings2 size={20} />
+                </div>
+                <span className="text-xs font-medium bg-slate-100 text-slate-600 px-2 py-1 rounded-full">
+                  {countForOp(op._id)} pending
+                </span>
+              </div>
+              <p className="font-semibold">{op.operationCode}</p>
+              <p className="text-sm text-slate-500">{op.operationName}</p>
+            </button>
           ))}
         </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="font-medium mb-2">Work Instructions / Notes</h2>
-        <p className="text-sm text-slate-600">{currentJobOrder.workInstructions}</p>
-      </div>
+      )}
     </Layout>
   );
 }
