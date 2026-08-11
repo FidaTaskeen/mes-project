@@ -1,6 +1,7 @@
 const JobOrder = require('../models/JobOrder');
 const Item = require('../models/Item');
 const Routing = require('../models/Routing');
+const ScanLog = require('../models/ScanLog');
 
 const generateJobOrderNo = async () => {
   const count = await JobOrder.countDocuments();
@@ -173,8 +174,9 @@ exports.deleteJobOrder = async (req, res) => {
     if (!jobOrder) {
       return res.status(404).json({ message: 'Job order not found' });
     }
+    await ScanLog.deleteMany({ jobOrder: jobOrder._id });
     await jobOrder.deleteOne();
-    res.status(200).json({ message: 'Job order deleted successfully' });
+    res.status(200).json({ message: 'Job order and associated scan logs deleted successfully' });
   } catch (err) {
     console.error('Delete job order error:', err.message);
     res.status(500).json({ message: 'Something went wrong. Please try again.' });

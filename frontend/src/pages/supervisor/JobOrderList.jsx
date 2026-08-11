@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Pencil, PauseCircle, CheckCircle2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Pencil, PauseCircle, PlayCircle, CheckCircle2, Trash2 } from "lucide-react";
 import Layout from "../../components/Layout";
 import axiosInstance from "../../api/axiosInstance";
 
@@ -133,17 +134,35 @@ export default function JobOrderList() {
     }
   };
 
+  const handleDelete = async (jo) => {
+    if (!window.confirm(`Delete ${jo.jobOrderNo}? This cannot be undone.`)) return;
+    try {
+      await axiosInstance.delete(`/joborders/${jo._id}`);
+      loadData();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to delete job order");
+    }
+  };
+
   const statusBadge = (status) => {
-    const styles = {
-      Planned: "bg-slate-100 text-slate-600",
-      Released: "bg-blue-100 text-blue-700",
-      "On Hold": "bg-amber-100 text-amber-700",
-      "In Progress": "bg-indigo-100 text-indigo-700",
-      Completed: "bg-green-100 text-green-700",
+    const dotColors = {
+      Planned: "bg-slate-400",
+      Released: "bg-blue-500",
+      "On Hold": "bg-amber-500",
+      "In Progress": "bg-indigo-500",
+      Completed: "bg-green-500",
+    };
+    const textColors = {
+      Planned: "text-slate-600",
+      Released: "text-blue-700",
+      "On Hold": "text-amber-700",
+      "In Progress": "text-indigo-700",
+      Completed: "text-green-700",
     };
     return (
-      <span className={`px-2 py-0.5 rounded text-xs font-medium ${styles[status] || "bg-slate-100 text-slate-600"}`}>
-        {status}
+      <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${textColors[status] || "text-slate-600"}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${dotColors[status] || "bg-slate-400"}`} />
+        {status === "In Progress" ? "InProgress" : status}
       </span>
     );
   };
@@ -227,14 +246,14 @@ export default function JobOrderList() {
         <table className="w-full text-sm whitespace-nowrap">
           <thead className="bg-slate-100 text-left">
             <tr>
-              <th className="px-4 py-3">Job No.</th>
-              <th className="px-4 py-3">Item No.</th>
-              <th className="px-4 py-3">Item No. - Description</th>
-              <th className="px-4 py-3">Quantity</th>
-              <th className="px-4 py-3">Produced Qty</th>
-              <th className="px-4 py-3">Due Date</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Actions</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Job No.</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Item No.</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Item No. - Description</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Quantity</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Produced Qty</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Due Date</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -245,7 +264,11 @@ export default function JobOrderList() {
             ) : (
               jobOrders.map((jo) => (
                 <tr key={jo._id} className="border-t hover:bg-slate-50 align-top">
-                  <td className="px-4 py-3 font-medium text-green-700">{jo.jobOrderNo}</td>
+                  <td className="px-4 py-3 font-medium text-green-700">
+                    <Link to={`/supervisor/job-order-details/${jo._id}`} className="hover:underline">
+                      {jo.jobOrderNo}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3">{jo.item?.itemCode}</td>
                   <td className="px-4 py-3 max-w-xs">
                     <button
@@ -255,7 +278,7 @@ export default function JobOrderList() {
                       <span className={expandedRow === jo._id ? "" : "line-clamp-1"}>
                         {jo.item?.itemCode} - {jo.item?.name}
                         {expandedRow === jo._id && jo.item?.description && (
-                          <span className="block text-xs text-slate-400 mt-1">{jo.item.description}</span>
+                          <span className="block text-xs text-slate-400 mt-1 line-clamp-3">{jo.item.description}</span>
                         )}
                       </span>
                     </button>
@@ -275,12 +298,13 @@ export default function JobOrderList() {
                       </button>
                       <button
                         onClick={() => setStatus(jo, jo.status === "On Hold" ? "Released" : "On Hold")}
+                        disabled={jo.status === "Completed"}
                         className={`w-7 h-7 rounded flex items-center justify-center ${
                           jo.status === "On Hold" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600 hover:bg-amber-50 hover:text-amber-600"
-                        }`}
+                        } disabled:opacity-40`}
                         title={jo.status === "On Hold" ? "Currently paused - click to resume" : "Pause"}
                       >
-                        <PauseCircle size={14} />
+                        {jo.status === "On Hold" ? <PlayCircle size={14} /> : <PauseCircle size={14} />}
                       </button>
                       <button
                         onClick={() => setStatus(jo, "Completed")}
@@ -291,6 +315,15 @@ export default function JobOrderList() {
                       >
                         <CheckCircle2 size={14} />
                       </button>
+                      {!jo.item && (
+                        <button
+                          onClick={() => handleDelete(jo)}
+                          className="w-7 h-7 rounded bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100"
+                          title="Delete broken record (missing Item)"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

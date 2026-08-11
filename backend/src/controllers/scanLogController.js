@@ -158,6 +158,19 @@ exports.getScanLogs = async (req, res) => {
     res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
 };
+
+exports.deleteScanLog = async (req, res) => {
+  try {
+    const log = await ScanLog.findById(req.params.id);
+    if (!log) return res.status(404).json({ message: 'Scan log not found' });
+    await log.deleteOne();
+    res.status(200).json({ message: 'Scan log deleted successfully' });
+  } catch (err) {
+    console.error('Delete scan log error:', err.message);
+    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+  }
+};
+
 // @route  GET /api/scanlogs/my-stats
 exports.getMyStats = async (req, res) => {
   try {

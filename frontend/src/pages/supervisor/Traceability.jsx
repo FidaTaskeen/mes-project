@@ -59,12 +59,12 @@ export default function Traceability() {
         <table className="w-full text-sm whitespace-nowrap">
           <thead className="bg-slate-100 text-left">
             <tr>
-              <th className="px-4 py-3">Job Order</th>
-              <th className="px-4 py-3">Serial ID</th>
-              <th className="px-4 py-3">Operation</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Scanned By</th>
-              <th className="px-4 py-3">Time</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Job Order</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Serial ID</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Operation</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Scanned By</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Time</th>
             </tr>
           </thead>
           <tbody>
@@ -79,7 +79,10 @@ export default function Traceability() {
                   <td className="px-4 py-3">{log.serialId}</td>
                   <td className="px-4 py-3">{log.operation?.operationName}</td>
                   <td className="px-4 py-3">
-                    <span className="px-2 py-0.5 rounded text-xs bg-red-100 text-red-700">Fail</span>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-red-700">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                      Fail
+                    </span>
                   </td>
                   <td className="px-4 py-3">{log.scannedBy?.name || "—"}</td>
                   <td className="px-4 py-3 text-slate-400">{new Date(log.createdAt).toLocaleString()}</td>
