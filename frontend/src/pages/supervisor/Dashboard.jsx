@@ -7,6 +7,7 @@ import axiosInstance from "../../api/axiosInstance";
 const navGroups = [
   {
     items: [
+      { label: "Dashboard", path: "/supervisor/dashboard" },
       { label: "Job Order", path: "/supervisor/job-order-list" },
       { label: "Traceability", path: "/supervisor/traceability" },
     ],
@@ -64,7 +65,6 @@ export default function SupervisorDashboard() {
       <h1 className="text-2xl font-bold mb-6">Supervisor Dashboard</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: module cards */}
         <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-5">
           <button
             onClick={() => navigate("/supervisor/job-order-list")}
@@ -88,7 +88,6 @@ export default function SupervisorDashboard() {
           </button>
         </div>
 
-        {/* Right: stats + alerts */}
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-white rounded-xl border p-4 text-center">

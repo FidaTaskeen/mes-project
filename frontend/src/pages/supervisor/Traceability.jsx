@@ -5,6 +5,7 @@ import axiosInstance from "../../api/axiosInstance";
 const navGroups = [
   {
     items: [
+      { label: "Dashboard", path: "/supervisor/dashboard" },
       { label: "Job Order", path: "/supervisor/job-order-list" },
       { label: "Traceability", path: "/supervisor/traceability" },
     ],
