@@ -1,3 +1,4 @@
+console.log('>>> OPERATION MODEL FILE LOADED FROM:', __filename);
 const mongoose = require('mongoose');
 
 const operationSchema = new mongoose.Schema(
@@ -24,10 +25,15 @@ const operationSchema = new mongoose.Schema(
 
     standardTime: {
       type: Number,
-      required: true,
+      default: 0,
       min: 0,
     },
 
+    scanningType: {
+      type: String,
+      enum: ['Scan', 'No Scan'],
+      default: 'No Scan',
+    },
     plant: {
       type: String,
       default: '',

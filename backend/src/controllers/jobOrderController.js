@@ -150,6 +150,15 @@ exports.updateJobOrder = async (req, res) => {
       if (!routingExists) return res.status(404).json({ message: 'Routing not found' });
     }
 
+    if (status === 'Completed' && jobOrder.status !== 'Completed') {
+      const processed = jobOrder.completedQuantity + jobOrder.rejectQuantity;
+      if (processed < jobOrder.quantity) {
+        return res.status(400).json({
+          message: `Cannot mark as Completed: only ${processed} of ${jobOrder.quantity} units processed.`,
+        });
+      }
+    }
+
     jobOrder.item = item ?? jobOrder.item;
     jobOrder.routing = routing ?? jobOrder.routing;
     jobOrder.quantity = quantity ?? jobOrder.quantity;

@@ -21,10 +21,8 @@ const emptyForm = {
   operationCode: "",
   operationName: "",
   workCenter: "",
-  standardTime: "",
-  machineGroup: "",
+  scanningType: "No Scan",
   routingType: "Direct Checkout",
-  operationRank: "",
   status: "Active",
 };
 
@@ -40,7 +38,7 @@ export default function AdminOperations() {
   const [filters, setFilters] = useState({
     operationCode: "",
     operationName: "",
-    routingType: "",
+    scanningType: "",
     status: "Active",
   });
 
@@ -52,7 +50,7 @@ export default function AdminOperations() {
       if (filters.operationCode || filters.operationName) {
         params.set("search", filters.operationCode || filters.operationName);
       }
-      if (filters.routingType) params.set("routingType", filters.routingType);
+      if (filters.scanningType) params.set("scanningType", filters.scanningType);
       if (filters.status) params.set("status", filters.status);
       params.set("limit", "100");
 
@@ -82,10 +80,8 @@ export default function AdminOperations() {
       operationCode: op.operationCode,
       operationName: op.operationName,
       workCenter: op.workCenter,
-      standardTime: op.standardTime,
-      machineGroup: op.machineGroup || "",
+      scanningType: op.scanningType || "No Scan",
       routingType: op.routingType || "Direct Checkout",
-      operationRank: op.operationRank || "",
       status: op.status,
     });
     setShowForm(true);
@@ -94,19 +90,22 @@ export default function AdminOperations() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    console.log("DEBUG sending form:", form);
     try {
       if (editingOp) {
-        await axiosInstance.put(`/operations/${editingOp._id}`, form);
+        const res = await axiosInstance.put(`/operations/${editingOp._id}`, form);
+        console.log("DEBUG server response:", res.data);
       } else {
-        await axiosInstance.post("/operations", form);
+        const res = await axiosInstance.post("/operations", form);
+        console.log("DEBUG server response:", res.data);
       }
       setShowForm(false);
       loadData();
     } catch (err) {
+      console.log("DEBUG error response:", err.response?.data);
       setError(err.response?.data?.message || "Failed to save operation");
     }
   };
-
   const handleDelete = async (id) => {
     if (!confirm("Delete this operation?")) return;
     try {
@@ -134,7 +133,6 @@ export default function AdminOperations() {
 
       {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>}
 
-      {/* Filter bar */}
       <div className="bg-white rounded-xl shadow-sm border p-4 mb-4">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-3">
           <div>
@@ -154,16 +152,15 @@ export default function AdminOperations() {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Routing Type</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Scanning Type</label>
             <select
-              value={filters.routingType}
-              onChange={(e) => setFilters({ ...filters, routingType: e.target.value })}
+              value={filters.scanningType}
+              onChange={(e) => setFilters({ ...filters, scanningType: e.target.value })}
               className="w-full border rounded-lg px-2 py-1.5 text-sm"
             >
               <option value="">All</option>
-              <option value="Direct Checkout">Direct Checkout</option>
-              <option value="Check In/Out">Check In/Out</option>
-              <option value="Standard">Standard</option>
+              <option value="Scan">Scan</option>
+              <option value="No Scan">No Scan</option>
             </select>
           </div>
           <div>
@@ -185,7 +182,7 @@ export default function AdminOperations() {
           </button>
           <button
             onClick={() => {
-              setFilters({ operationCode: "", operationName: "", routingType: "", status: "Active" });
+              setFilters({ operationCode: "", operationName: "", scanningType: "", status: "Active" });
               loadData();
             }}
             className="border px-4 py-1.5 rounded-lg text-sm font-medium text-slate-600"
@@ -195,7 +192,6 @@ export default function AdminOperations() {
         </div>
       </div>
 
-      {/* Data table */}
       <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
         <table className="w-full text-sm whitespace-nowrap">
           <thead className="bg-slate-100 text-left">
@@ -203,29 +199,33 @@ export default function AdminOperations() {
               <th className="px-4 py-3">Operation Code</th>
               <th className="px-4 py-3">Operation Name</th>
               <th className="px-4 py-3">Work Center</th>
+              <th className="px-4 py-3">Scanning Type</th>
               <th className="px-4 py-3">Routing Type</th>
-              <th className="px-4 py-3">Operation Rank</th>
-              <th className="px-4 py-3">Machine Group</th>
-              <th className="px-4 py-3">Standard Time</th>
               <th className="px-4 py-3">Created On</th>
               <th className="px-4 py-3">Action</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="9" className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
+              <tr><td colSpan="7" className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
             ) : operations.length === 0 ? (
-              <tr><td colSpan="9" className="px-4 py-6 text-center text-slate-400">No operations found.</td></tr>
+              <tr><td colSpan="7" className="px-4 py-6 text-center text-slate-400">No operations found.</td></tr>
             ) : (
               operations.map((op) => (
                 <tr key={op._id} className="border-t hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium">{op.operationCode}</td>
                   <td className="px-4 py-3">{op.operationName}</td>
                   <td className="px-4 py-3">{op.workCenter}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`px-2 py-0.5 rounded text-xs ${
+                        op.scanningType === "Scan" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {op.scanningType || "No Scan"}
+                    </span>
+                  </td>
                   <td className="px-4 py-3">{op.routingType}</td>
-                  <td className="px-4 py-3">{op.operationRank || "—"}</td>
-                  <td className="px-4 py-3">{op.machineGroup || "—"}</td>
-                  <td className="px-4 py-3">{op.standardTime} min</td>
                   <td className="px-4 py-3">
                     {op.createdAt ? new Date(op.createdAt).toLocaleDateString() : "—"}
                   </td>
@@ -288,30 +288,15 @@ export default function AdminOperations() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Standard Time (min)</label>
-                <input
-                  type="number"
-                  value={form.standardTime}
-                  onChange={(e) => setForm({ ...form, standardTime: e.target.value })}
-                  required
+                <label className="block text-sm font-medium mb-1">Scanning Type</label>
+                <select
+                  value={form.scanningType}
+                  onChange={(e) => setForm({ ...form, scanningType: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Machine Group</label>
-                <input
-                  value={form.machineGroup}
-                  onChange={(e) => setForm({ ...form, machineGroup: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Operation Rank</label>
-                <input
-                  value={form.operationRank}
-                  onChange={(e) => setForm({ ...form, operationRank: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2"
-                />
+                >
+                  <option value="Scan">Scan</option>
+                  <option value="No Scan">No Scan</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Routing Type</label>

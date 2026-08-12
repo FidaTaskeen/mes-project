@@ -4,12 +4,12 @@ exports.createOperation = async (req, res) => {
   try {
     const {
       operationCode, operationName, workCenter, standardTime, status,
-      plant, shopfloor, machineGroup, routingType, operationRank,
+      plant, shopfloor, machineGroup, routingType, operationRank, scanningType,
     } = req.body;
 
-    if (!operationCode || !operationName || !workCenter || standardTime == null) {
+    if (!operationCode || !operationName || !workCenter) {
       return res.status(400).json({
-        message: 'Operation code, name, work center, and standard time are required',
+        message: 'Operation code, name, and work center are required',
       });
     }
 
@@ -20,20 +20,20 @@ exports.createOperation = async (req, res) => {
 
     const operation = await Operation.create({
       operationCode, operationName, workCenter, standardTime, status,
-      plant, shopfloor, machineGroup, routingType, operationRank,
+      plant, shopfloor, machineGroup, routingType, operationRank, scanningType,
       createdBy: req.user.id,
     });
 
     res.status(201).json({ message: 'Operation created successfully', operation });
   } catch (err) {
     console.error('Create operation error:', err.message);
-    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+    res.status(500).json({ message: err.message || 'Something went wrong. Please try again.' });
   }
 };
 
 exports.getOperations = async (req, res) => {
   try {
-    const { search, workCenter, status, plant, shopfloor, routingType, operationRank, page = 1, limit = 20 } = req.query;
+    const { search, workCenter, status, plant, shopfloor, routingType, operationRank, scanningType, page = 1, limit = 20 } = req.query;
 
     const filter = {};
     if (search) {
@@ -48,6 +48,7 @@ exports.getOperations = async (req, res) => {
     if (shopfloor) filter.shopfloor = shopfloor;
     if (routingType) filter.routingType = routingType;
     if (operationRank) filter.operationRank = operationRank;
+    if (scanningType) filter.scanningType = scanningType;
 
     const operations = await Operation.find(filter)
       .sort({ createdAt: -1 })
@@ -78,7 +79,7 @@ exports.updateOperation = async (req, res) => {
   try {
     const {
       operationCode, operationName, workCenter, standardTime, status,
-      plant, shopfloor, machineGroup, routingType, operationRank,
+      plant, shopfloor, machineGroup, routingType, operationRank, scanningType,
     } = req.body;
 
     const operation = await Operation.findById(req.params.id);
@@ -99,12 +100,13 @@ exports.updateOperation = async (req, res) => {
     operation.machineGroup = machineGroup ?? operation.machineGroup;
     operation.routingType = routingType ?? operation.routingType;
     operation.operationRank = operationRank ?? operation.operationRank;
+    operation.scanningType = scanningType ?? operation.scanningType;
 
     await operation.save();
     res.status(200).json({ message: 'Operation updated successfully', operation });
   } catch (err) {
     console.error('Update operation error:', err.message);
-    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+    res.status(500).json({ message: err.message || 'Something went wrong. Please try again.' });
   }
 };
 

@@ -130,8 +130,8 @@ exports.addScan = async (req, res) => {
       rejectQuantity: jobOrder.rejectQuantity,
     });
   } catch (err) {
-    console.error('Add scan error:', err.message);
-    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+    console.error('Add scan error FULL:', err);
+    res.status(500).json({ message: err.message, stack: err.stack });
   }
 };
 

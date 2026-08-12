@@ -19,17 +19,9 @@ const navGroups = [
 ];
 
 const FIXED_OPERATION_ORDER = [
-  "loading",
-  "spi",
-  "aoi",
-  "unloading",
-  "manual insertion",
-  "post wave inspection",
-  "depanelling",
-  "visual inspection",
-  "functional testing",
-  "dqc",
-  "packing",
+  "loading", "spi", "aoi", "unloading", "manual insertion",
+  "post wave inspection", "depanelling", "visual inspection",
+  "functional testing", "oqc", "packing",
 ];
 
 const sortByFixedOrder = (ops) => {
@@ -41,12 +33,20 @@ const sortByFixedOrder = (ops) => {
   return [...ops].sort((a, b) => rank(a) - rank(b));
 };
 
+const deriveLineFields = (operation) => {
+  if (operation?.scanningType === "Scan") {
+    return { type: "Scanning", scan: "Serial No" };
+  }
+  return { type: "No_Scanning", scan: "None" };
+};
+
 const emptyForm = {
   routingCode: "",
   bom: "",
   status: "Active",
+  version: "Version 1",
   description: "",
-  firstScanningOperation: "",
+  firstScanOperation: "",
   lastScanOperation: "",
   steps: [],
 };
@@ -57,6 +57,7 @@ export default function RoutingForm() {
   const isEditing = !!id;
 
   const [boms, setBoms] = useState([]);
+  const [items, setItems] = useState([]);
   const [operations, setOperations] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(isEditing);
@@ -65,11 +66,21 @@ export default function RoutingForm() {
 
   useEffect(() => {
     loadBoms();
+    loadItems();
     loadOperations();
     if (isEditing) loadExisting();
     else generateCode();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const loadItems = async () => {
+    try {
+      const res = await axiosInstance.get("/items/active/list");
+      setItems(res.data.items || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const loadBoms = async () => {
     try {
@@ -113,16 +124,15 @@ export default function RoutingForm() {
         routingCode: routing.routingCode,
         bom: routing.bom?._id || routing.bom,
         status: routing.status,
+        version: routing.version || "Version 1",
         description: routing.description || "",
-        firstScanningOperation: routing.firstScanningOperation?._id || "",
-        lastScanOperation: routing.lastScanOperation?._id || "",
+        firstScanOperation: routing.firstScanOperation?._id || routing.firstScanOperation || "",
+        lastScanOperation: routing.lastScanOperation?._id || routing.lastScanOperation || "",
         steps: routing.steps.map((s) => ({
           operation: s.operation?._id || s.operation,
           stage: s.stage || "Middle",
-          previousOperation: s.previousOperation?._id || s.previousOperation || "",
           type: s.type || "No_Scanning",
           scan: s.scan || "None",
-          standardTime: s.standardTime || 0,
         })),
       });
     } catch (err) {
@@ -132,15 +142,18 @@ export default function RoutingForm() {
     }
   };
 
+  const handleItemChange = (bomId) => {
+    const bom = boms.find((b) => b._id === bomId);
+    const item = items.find((i) => i._id === (bom?.parentItem?._id || bom?.parentItem));
+    setForm({ ...form, bom: bomId, description: item?.description || "" });
+  };
+
   const addAllOperations = () => {
     const ordered = sortByFixedOrder(operations);
     const steps = ordered.map((op, index) => ({
       operation: op._id,
       stage: index === 0 ? "Start" : index === ordered.length - 1 ? "End" : "Middle",
-      previousOperation: index === 0 ? "" : ordered[index - 1]._id,
-      type: index === 0 ? "Scanning" : "No_Scanning",
-      scan: index === 0 ? "Serial No" : "None",
-      standardTime: op.standardTime || 0,
+      ...deriveLineFields(op),
     }));
     setForm({ ...form, steps });
   };
@@ -150,14 +163,7 @@ export default function RoutingForm() {
       ...form,
       steps: [
         ...form.steps,
-        {
-          operation: "",
-          stage: "Middle",
-          previousOperation: "",
-          type: "No_Scanning",
-          scan: "None",
-          standardTime: 0,
-        },
+        { operation: "", stage: "Middle", type: "No_Scanning", scan: "None" },
       ],
     });
   };
@@ -168,7 +174,7 @@ export default function RoutingForm() {
 
     if (field === "operation") {
       const op = operations.find((o) => o._id === value);
-      if (op) updated[index].standardTime = op.standardTime;
+      Object.assign(updated[index], deriveLineFields(op));
     }
 
     setForm({ ...form, steps: updated });
@@ -178,19 +184,14 @@ export default function RoutingForm() {
     setForm({ ...form, steps: form.steps.filter((_, i) => i !== index) });
   };
 
-  const buildPayload = () => {
-    const steps = form.steps.map((s, i) => {
-      const step = { ...s, sequenceNo: (i + 1) * 10 };
-      if (!step.previousOperation) delete step.previousOperation;
-      return step;
-    });
-    return { ...form, steps };
-  };
-
- const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
+    if (!form.firstScanOperation || !form.lastScanOperation) {
+      setError("First Scan Operation and Last Scan Operation are both mandatory");
+      return;
+    }
     if (form.steps.length === 0) {
       setError("Add at least one routing line before saving");
       return;
@@ -203,7 +204,9 @@ export default function RoutingForm() {
 
     setSaving(true);
     try {
-      const payload = buildPayload();
+      const steps = form.steps.map((s, i) => ({ ...s, sequenceNo: (i + 1) * 10 }));
+      const payload = { ...form, steps };
+
       if (isEditing) {
         await axiosInstance.put(`/routings/${id}`, payload);
       } else {
@@ -234,10 +237,10 @@ export default function RoutingForm() {
         <ArrowLeft size={14} /> Back to Routing Master
       </button>
 
-      <h1 className="text-lg font-semibold text-slate-500 mb-1">
+      <div className="text-sm text-slate-500 mb-1">
         Dashboard &gt; Masters &gt; Routing &gt; {isEditing ? "Update" : "Create"}
-      </h1>
-      <h2 className="text-xl font-bold mb-5">Routing - Header</h2>
+      </div>
+      <h1 className="text-xl font-bold mb-5">Routing - Header</h1>
 
       {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>}
 
@@ -252,14 +255,14 @@ export default function RoutingForm() {
             <label className="block text-sm font-medium mb-1">Item No</label>
             <select
               value={form.bom}
-              onChange={(e) => setForm({ ...form, bom: e.target.value })}
+              onChange={(e) => handleItemChange(e.target.value)}
               required
               className="w-full border rounded px-3 py-2"
             >
               <option value="">Select Item</option>
               {boms.map((bom) => (
                 <option key={bom._id} value={bom._id}>
-                  {bom.parentItem?.itemCode} - {bom.parentItem?.name} (BOM: {bom.bomCode})
+                  {bom.parentItem?.itemCode}
                 </option>
               ))}
             </select>
@@ -273,6 +276,7 @@ export default function RoutingForm() {
               className="w-full border rounded px-3 py-2"
             >
               <option value="Active">Active</option>
+              <option value="Draft">Draft</option>
               <option value="Inactive">Inactive</option>
             </select>
           </div>
@@ -281,19 +285,23 @@ export default function RoutingForm() {
             <label className="block text-sm font-medium mb-1">Description</label>
             <input
               value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className="w-full border rounded px-3 py-2"
+              readOnly
+              placeholder="Auto-filled from the selected Item"
+              className="w-full border rounded px-3 py-2 bg-slate-100"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">First Scan Operation</label>
+            <label className="block text-sm font-medium mb-1">
+              First Scan Operation <span className="text-red-500">*</span>
+            </label>
             <select
-              value={form.firstScanningOperation}
-              onChange={(e) => setForm({ ...form, firstScanningOperation: e.target.value })}
+              value={form.firstScanOperation}
+              onChange={(e) => setForm({ ...form, firstScanOperation: e.target.value })}
+              required
               className="w-full border rounded px-3 py-2"
             >
-              <option value="">None</option>
+              <option value="">Select Operation</option>
               {operations.map((op) => (
                 <option key={op._id} value={op._id}>{op.operationCode} - {op.operationName}</option>
               ))}
@@ -301,17 +309,29 @@ export default function RoutingForm() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Last Scan Operation</label>
+            <label className="block text-sm font-medium mb-1">
+              Last Scan Operation <span className="text-red-500">*</span>
+            </label>
             <select
               value={form.lastScanOperation}
               onChange={(e) => setForm({ ...form, lastScanOperation: e.target.value })}
+              required
               className="w-full border rounded px-3 py-2"
             >
-              <option value="">None</option>
+              <option value="">Select Operation</option>
               {operations.map((op) => (
                 <option key={op._id} value={op._id}>{op.operationCode} - {op.operationName}</option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Version</label>
+            <input
+              value={form.version}
+              onChange={(e) => setForm({ ...form, version: e.target.value })}
+              className="w-full border rounded px-3 py-2"
+            />
           </div>
         </div>
 
@@ -338,7 +358,6 @@ export default function RoutingForm() {
                 <tr className="text-left text-xs text-slate-500">
                   <th className="pb-2 pr-2 min-w-[180px]">Operation</th>
                   <th className="pb-2 pr-2 w-28">Stage</th>
-                  <th className="pb-2 pr-2 min-w-[180px]">Previous Operation</th>
                   <th className="pb-2 pr-2 w-36">Type</th>
                   <th className="pb-2 pr-2 w-28">Scan</th>
                   <th className="pb-2 w-20">Action</th>
@@ -368,18 +387,6 @@ export default function RoutingForm() {
                         <option value="Start">Start</option>
                         <option value="Middle">Middle</option>
                         <option value="End">End</option>
-                      </select>
-                    </td>
-                    <td className="pr-2 pb-2">
-                      <select
-                        value={step.previousOperation}
-                        onChange={(e) => updateStep(index, "previousOperation", e.target.value)}
-                        className="w-full border rounded px-2 py-1.5"
-                      >
-                        <option value="">None</option>
-                        {operations.map((op) => (
-                          <option key={op._id} value={op._id}>{op.operationCode} - {op.operationName}</option>
-                        ))}
                       </select>
                     </td>
                     <td className="pr-2 pb-2">

@@ -7,22 +7,23 @@ const POPULATE_LIST = [
   { path: 'item', select: 'itemCode name description' },
   { path: 'bom', select: 'bomCode' },
   { path: 'steps.operation', select: 'operationCode operationName workCenter' },
-  { path: 'steps.previousOperation', select: 'operationCode operationName' },
-  { path: 'firstScanningOperation', select: 'operationCode operationName' },
+  { path: 'firstScanOperation', select: 'operationCode operationName' },
   { path: 'lastScanOperation', select: 'operationCode operationName' },
   { path: 'createdBy', select: 'name userId' },
-  { path: 'updatedBy', select: 'name userId' },
 ];
 
 exports.createRouting = async (req, res) => {
   try {
     const {
-      routingCode, bom, steps, status, description,
-      firstScanningOperation, lastScanOperation,
+      routingCode, bom, steps, status, version, description,
+      firstScanOperation, lastScanOperation,
     } = req.body;
 
     if (!routingCode || !bom || !steps || steps.length === 0) {
       return res.status(400).json({ message: 'Routing code, BOM, and at least one step are required' });
+    }
+    if (!firstScanOperation || !lastScanOperation) {
+      return res.status(400).json({ message: 'First Scan Operation and Last Scan Operation are required' });
     }
 
     const existing = await Routing.findOne({ routingCode: routingCode.toUpperCase() });
@@ -42,9 +43,8 @@ exports.createRouting = async (req, res) => {
     }
 
     const routing = await Routing.create({
-      routingCode, item, bom, steps, status, description,
-      firstScanningOperation: firstScanningOperation || undefined,
-      lastScanOperation: lastScanOperation || undefined,
+      routingCode, item, bom, steps, status, version, description,
+      firstScanOperation, lastScanOperation,
       createdBy: req.user.id,
     });
 
@@ -93,8 +93,8 @@ exports.getRoutingById = async (req, res) => {
 exports.updateRouting = async (req, res) => {
   try {
     const {
-      routingCode, bom, steps, status, description,
-      firstScanningOperation, lastScanOperation,
+      routingCode, bom, steps, status, version, description,
+      firstScanOperation, lastScanOperation,
     } = req.body;
 
     const routing = await Routing.findById(req.params.id);
@@ -114,6 +114,9 @@ exports.updateRouting = async (req, res) => {
 
     if (steps) {
       for (const step of steps) {
+        if (!step.operation) {
+          return res.status(400).json({ message: 'Every routing line must have an Operation selected' });
+        }
         const opExists = await Operation.findById(step.operation);
         if (!opExists) return res.status(404).json({ message: `Operation not found: ${step.operation}` });
       }
@@ -122,10 +125,10 @@ exports.updateRouting = async (req, res) => {
     routing.routingCode = routingCode ?? routing.routingCode;
     routing.steps = steps ?? routing.steps;
     routing.status = status ?? routing.status;
+    routing.version = version ?? routing.version;
     routing.description = description ?? routing.description;
-    routing.firstScanningOperation = firstScanningOperation || routing.firstScanningOperation;
-    routing.lastScanOperation = lastScanOperation || routing.lastScanOperation;
-    routing.updatedBy = req.user.id;
+    routing.firstScanOperation = firstScanOperation ?? routing.firstScanOperation;
+    routing.lastScanOperation = lastScanOperation ?? routing.lastScanOperation;
 
     await routing.save();
     const populated = await routing.populate(POPULATE_LIST);
@@ -146,4 +149,4 @@ exports.deleteRouting = async (req, res) => {
     console.error('Delete routing error:', err.message);
     res.status(500).json({ message: err.message || 'Something went wrong. Please try again.' });
   }
-};  
+};

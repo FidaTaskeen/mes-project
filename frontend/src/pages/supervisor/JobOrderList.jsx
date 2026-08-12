@@ -315,15 +315,13 @@ export default function JobOrderList() {
                       >
                         <CheckCircle2 size={14} />
                       </button>
-                      {!jo.item && (
-                        <button
-                          onClick={() => handleDelete(jo)}
-                          className="w-7 h-7 rounded bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100"
-                          title="Delete broken record (missing Item)"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleDelete(jo)}
+                        className="w-7 h-7 rounded bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100"
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </td>
                 </tr>
