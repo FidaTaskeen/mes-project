@@ -29,6 +29,11 @@ const itemSchema = new mongoose.Schema(
       enum: ['FG', 'WIP', 'RM'],
       required: [true, 'Item type is required'],
     },
+    serialNoLength: {
+      type: Number,
+      min: [1, 'Serial number length must be at least 1'],
+      default: null,
+    },
     status: {
       type: String,
       enum: ['Active', 'Inactive'],

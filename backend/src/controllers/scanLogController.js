@@ -61,12 +61,19 @@ exports.addScan = async (req, res) => {
       return res.status(400).json({ message: 'Status must be Pass or Fail' });
     }
 
-    const jobOrder = await JobOrder.findById(jobOrderId).populate({
-      path: 'routing',
-      populate: { path: 'steps.operation', select: 'operationCode operationName' },
-    });
+    const jobOrder = await JobOrder.findById(jobOrderId)
+      .populate('item', 'serialNoLength itemCode')
+      .populate({
+        path: 'routing',
+        populate: { path: 'steps.operation', select: 'operationCode operationName' },
+      });
     if (!jobOrder) return res.status(404).json({ message: 'Job order not found' });
 
+    if (jobOrder.item?.serialNoLength && serialId.length !== jobOrder.item.serialNoLength) {
+      return res.status(400).json({
+        message: `Serial number must be exactly ${jobOrder.item.serialNoLength} digits for ${jobOrder.item.itemCode} (you entered ${serialId.length}).`,
+      });
+    }
     if (jobOrder.status === 'Completed') {
       return res.status(400).json({ message: 'This job order is already completed.' });
     }
