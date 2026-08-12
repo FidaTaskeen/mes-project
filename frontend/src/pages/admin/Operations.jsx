@@ -17,6 +17,26 @@ const navGroups = [
   },
 ];
 
+const FIXED_OPERATION_ORDER = [
+  "loading", "spi", "aoi", "unloading", "manual insertion",
+  "post wave inspection", "depanelling", "visual inspection",
+  "functional testing", "oqc", "packing",
+];
+
+const sortByFixedOrder = (ops) => {
+  const rank = (op) => {
+    const name = (op.operationName || "").toLowerCase().trim();
+    const idx = FIXED_OPERATION_ORDER.indexOf(name);
+    return idx === -1 ? FIXED_OPERATION_ORDER.length : idx;
+  };
+  return [...ops].sort((a, b) => {
+    const r = rank(a) - rank(b);
+    if (r !== 0) return r;
+    // Same rank (both in TVSE list at same step, or both unmatched) - fall back to creation order
+    return new Date(a.createdAt) - new Date(b.createdAt);
+  });
+};
+
 const emptyForm = {
   operationCode: "",
   operationName: "",
@@ -55,7 +75,7 @@ export default function AdminOperations() {
       params.set("limit", "100");
 
       const res = await axiosInstance.get(`/operations?${params.toString()}`);
-      setOperations(res.data.operations || []);
+      setOperations(sortByFixedOrder(res.data.operations || []));
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load operations");
     } finally {
@@ -90,19 +110,15 @@ export default function AdminOperations() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    console.log("DEBUG sending form:", form);
     try {
       if (editingOp) {
-        const res = await axiosInstance.put(`/operations/${editingOp._id}`, form);
-        console.log("DEBUG server response:", res.data);
+        await axiosInstance.put(`/operations/${editingOp._id}`, form);
       } else {
-        const res = await axiosInstance.post("/operations", form);
-        console.log("DEBUG server response:", res.data);
+        await axiosInstance.post("/operations", form);
       }
       setShowForm(false);
       loadData();
     } catch (err) {
-      console.log("DEBUG error response:", err.response?.data);
       setError(err.response?.data?.message || "Failed to save operation");
     }
   };
