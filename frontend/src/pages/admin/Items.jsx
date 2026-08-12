@@ -21,6 +21,7 @@ const emptyForm = {
   name: "",
   itemType: "FG",
   unitOfMeasure: "PCS",
+  serialNoLength: "",
   description: "",
   status: "Active",
 };
@@ -66,6 +67,7 @@ export default function AdminItems() {
       name: item.name,
       itemType: item.itemType,
       unitOfMeasure: item.unitOfMeasure,
+      serialNoLength: item.serialNoLength || "",
       description: item.description || "",
       status: item.status,
     });
@@ -77,10 +79,14 @@ export default function AdminItems() {
     setSaving(true);
     setError("");
     try {
+      const payload = {
+        ...form,
+        serialNoLength: form.serialNoLength ? Number(form.serialNoLength) : null,
+      };
       if (editingItem) {
-        await axiosInstance.put(`/items/${editingItem._id}`, form);
+        await axiosInstance.put(`/items/${editingItem._id}`, payload);
       } else {
-        await axiosInstance.post("/items", form);
+        await axiosInstance.post("/items", payload);
       }
       setShowForm(false);
       loadItems();
@@ -149,6 +155,7 @@ export default function AdminItems() {
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3">UOM</th>
+                <th className="px-4 py-3">Serial No. Length</th>
                 <th className="px-4 py-3">Description</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Actions</th>
@@ -161,6 +168,7 @@ export default function AdminItems() {
                   <td className="px-4 py-3">{item.name}</td>
                   <td className="px-4 py-3">{item.itemType}</td>
                   <td className="px-4 py-3">{item.unitOfMeasure}</td>
+                  <td className="px-4 py-3">{item.serialNoLength || "—"}</td>
                   <td className="px-4 py-3 max-w-xs">
                     <span title={item.description} className="text-slate-500 line-clamp-1">
                       {item.description || "—"}
@@ -189,7 +197,7 @@ export default function AdminItems() {
               ))}
               {filteredItems.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
+                  <td colSpan={8} className="px-4 py-6 text-center text-slate-400">
                     No items found.
                   </td>
                 </tr>
@@ -241,6 +249,20 @@ export default function AdminItems() {
               placeholder="e.g. PCS"
               className="w-full border rounded px-3 py-2 mb-3"
             />
+
+            <label className="block text-sm font-medium mb-1">Serial No. Length</label>
+            <input
+              type="number"
+              min="1"
+              max="50"
+              value={form.serialNoLength}
+              onChange={(e) => setForm({ ...form, serialNoLength: e.target.value })}
+              placeholder="e.g. 15"
+              className="w-full border rounded px-3 py-2 mb-1"
+            />
+            <p className="text-xs text-slate-400 mb-3">
+              Number of digits the Operator's scanned serial number must have for this item. Leave blank if not enforced.
+            </p>
 
             <label className="block text-sm font-medium mb-1">Description</label>
             <textarea

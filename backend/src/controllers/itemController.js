@@ -38,7 +38,7 @@ exports.createItem = async (req, res) => {
 
 exports.getItems = async (req, res) => {
   try {
-    const { search, itemType, status, serialNoLength, page = 1, limit = 20 } = req.query;
+    const { search, itemType, status, page = 1, limit = 20 } = req.query;
 
     const filter = {};
     if (search) {
@@ -49,7 +49,6 @@ exports.getItems = async (req, res) => {
     }
     if (itemType) filter.itemType = itemType;
     if (status) filter.status = status;
-    if (serialNoLength) filter.serialNoLength = Number(serialNoLength);
 
     const items = await Item.find(filter)
       .sort({ createdAt: -1 })
@@ -104,7 +103,7 @@ exports.updateItem = async (req, res) => {
     item.description = description ?? item.description;
     item.unitOfMeasure = unitOfMeasure ?? item.unitOfMeasure;
     item.itemType = itemType ?? item.itemType;
-    item.serialNoLength = serialNoLength !== undefined ? (serialNoLength || null) : item.serialNoLength;
+    item.serialNoLength = serialNoLength ?? item.serialNoLength;
     item.status = status ?? item.status;
 
     await item.save();
