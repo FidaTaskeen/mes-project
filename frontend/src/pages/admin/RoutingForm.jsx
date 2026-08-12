@@ -162,6 +162,18 @@ export default function RoutingForm() {
     setForm({ ...form, steps: form.steps.filter((_, i) => i !== index) });
   };
 
+  const handleCancel = () => {
+    setError("");
+    if (isEditing) {
+      // Reload the original saved values, discarding unsaved edits
+      loadExisting();
+    } else {
+      // Reset to a blank form, generate a fresh routing code, stay on this page
+      setForm(emptyForm);
+      generateCode();
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -422,7 +434,7 @@ export default function RoutingForm() {
         </div>
 
         <div className="flex justify-end gap-3 mt-6">
-          <button type="button" onClick={() => navigate("/admin/routing")} className="px-4 py-2 text-slate-600">
+          <button type="button" onClick={handleCancel} className="px-4 py-2 text-slate-600">
             Cancel
           </button>
           <button
