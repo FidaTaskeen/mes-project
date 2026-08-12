@@ -18,21 +18,6 @@ const navGroups = [
   },
 ];
 
-const FIXED_OPERATION_ORDER = [
-  "loading", "spi", "aoi", "unloading", "manual insertion",
-  "post wave inspection", "depanelling", "visual inspection",
-  "functional testing", "oqc", "packing",
-];
-
-const sortByFixedOrder = (ops) => {
-  const rank = (op) => {
-    const name = (op.operationName || "").toLowerCase().trim();
-    const idx = FIXED_OPERATION_ORDER.indexOf(name);
-    return idx === -1 ? FIXED_OPERATION_ORDER.length : idx;
-  };
-  return [...ops].sort((a, b) => rank(a) - rank(b));
-};
-
 const deriveLineFields = (operation) => {
   if (operation?.scanningType === "Scan") {
     return { type: "Scanning", scan: "Serial No" };
@@ -131,6 +116,7 @@ export default function RoutingForm() {
         steps: routing.steps.map((s) => ({
           operation: s.operation?._id || s.operation,
           stage: s.stage || "Middle",
+          previousOperation: s.previousOperation?._id || s.previousOperation || "",
           type: s.type || "No_Scanning",
           scan: s.scan || "None",
         })),
@@ -148,22 +134,12 @@ export default function RoutingForm() {
     setForm({ ...form, bom: bomId, description: item?.description || "" });
   };
 
-  const addAllOperations = () => {
-    const ordered = sortByFixedOrder(operations);
-    const steps = ordered.map((op, index) => ({
-      operation: op._id,
-      stage: index === 0 ? "Start" : index === ordered.length - 1 ? "End" : "Middle",
-      ...deriveLineFields(op),
-    }));
-    setForm({ ...form, steps });
-  };
-
   const addStep = () => {
     setForm({
       ...form,
       steps: [
         ...form.steps,
-        { operation: "", stage: "Middle", type: "No_Scanning", scan: "None" },
+        { operation: "", stage: "Middle", previousOperation: "", type: "No_Scanning", scan: "None" },
       ],
     });
   };
@@ -210,7 +186,12 @@ export default function RoutingForm() {
       // so the routing always reflects the latest Scanning Type - never stale.
       const steps = form.steps.map((s, i) => {
         const op = operations.find((o) => o._id === s.operation);
-        return { ...s, ...deriveLineFields(op), sequenceNo: (i + 1) * 10 };
+        return {
+          ...s,
+          ...deriveLineFields(op),
+          previousOperation: s.previousOperation || null,
+          sequenceNo: (i + 1) * 10,
+        };
       });
       const payload = { ...form, steps };
 
@@ -345,14 +326,9 @@ export default function RoutingForm() {
         <div className="border rounded-lg p-4">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold">Routing Lines ({form.steps.length})</h3>
-            <div className="flex gap-3">
-              <button type="button" onClick={addAllOperations} className="text-blue-600 text-sm font-medium">
-                + Add All Active Operations (TVSE order)
-              </button>
-              <button type="button" onClick={addStep} className="text-blue-600 text-sm font-medium">
-                + Add Line
-              </button>
-            </div>
+            <button type="button" onClick={addStep} className="text-blue-600 text-sm font-medium">
+              + Add Line
+            </button>
           </div>
 
           {form.steps.length === 0 && (
@@ -364,6 +340,7 @@ export default function RoutingForm() {
               <thead>
                 <tr className="text-left text-xs text-slate-500">
                   <th className="pb-2 pr-2 min-w-[180px]">Operation</th>
+                  <th className="pb-2 pr-2 min-w-[180px]">Previous Operation</th>
                   <th className="pb-2 pr-2 w-28">Stage</th>
                   <th className="pb-2 pr-2 w-36">Type</th>
                   <th className="pb-2 pr-2 w-28">Scan</th>
@@ -380,6 +357,18 @@ export default function RoutingForm() {
                         className="w-full border rounded px-2 py-1.5"
                       >
                         <option value="">Select Operation</option>
+                        {operations.map((op) => (
+                          <option key={op._id} value={op._id}>{op.operationCode} - {op.operationName}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="pr-2 pb-2">
+                      <select
+                        value={step.previousOperation}
+                        onChange={(e) => updateStep(index, "previousOperation", e.target.value)}
+                        className="w-full border rounded px-2 py-1.5"
+                      >
+                        <option value="">None</option>
                         {operations.map((op) => (
                           <option key={op._id} value={op._id}>{op.operationCode} - {op.operationName}</option>
                         ))}

@@ -5,6 +5,7 @@ const routingStepSchema = new mongoose.Schema(
     operation: { type: mongoose.Schema.Types.ObjectId, ref: 'Operation', required: true },
     sequenceNo: { type: Number, required: true, min: 1 },
     stage: { type: String, enum: ['Start', 'Middle', 'End'], default: 'Middle' },
+    previousOperation: { type: mongoose.Schema.Types.ObjectId, ref: 'Operation', default: null },
     type: { type: String, enum: ['Scanning', 'No_Scanning'], default: 'No_Scanning' },
     scan: { type: String, enum: ['Serial No', 'None'], default: 'None' },
   },

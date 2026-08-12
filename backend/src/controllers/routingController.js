@@ -7,6 +7,7 @@ const POPULATE_LIST = [
   { path: 'item', select: 'itemCode name description' },
   { path: 'bom', select: 'bomCode' },
   { path: 'steps.operation', select: 'operationCode operationName workCenter' },
+  { path: 'steps.previousOperation', select: 'operationCode operationName' },
   { path: 'firstScanOperation', select: 'operationCode operationName' },
   { path: 'lastScanOperation', select: 'operationCode operationName' },
   { path: 'createdBy', select: 'name userId' },
