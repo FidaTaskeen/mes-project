@@ -172,6 +172,8 @@ export default function RoutingForm() {
     const updated = [...form.steps];
     updated[index][field] = value;
 
+    // Type and Scan are always auto-derived from the selected Operation's Scanning Type
+    // in Operations master - never manually editable here.
     if (field === "operation") {
       const op = operations.find((o) => o._id === value);
       Object.assign(updated[index], deriveLineFields(op));
@@ -204,7 +206,12 @@ export default function RoutingForm() {
 
     setSaving(true);
     try {
-      const steps = form.steps.map((s, i) => ({ ...s, sequenceNo: (i + 1) * 10 }));
+      // Re-derive type/scan from current Operations master right before saving,
+      // so the routing always reflects the latest Scanning Type - never stale.
+      const steps = form.steps.map((s, i) => {
+        const op = operations.find((o) => o._id === s.operation);
+        return { ...s, ...deriveLineFields(op), sequenceNo: (i + 1) * 10 };
+      });
       const payload = { ...form, steps };
 
       if (isEditing) {
@@ -390,24 +397,24 @@ export default function RoutingForm() {
                       </select>
                     </td>
                     <td className="pr-2 pb-2">
-                      <select
-                        value={step.type}
-                        onChange={(e) => updateStep(index, "type", e.target.value)}
-                        className="w-full border rounded px-2 py-1.5"
+                      <span
+                        className={`inline-block px-2 py-1.5 rounded text-xs w-full text-center ${
+                          step.type === "Scanning"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                        title="Auto-set from the Operation's Scanning Type in Operations master"
                       >
-                        <option value="Scanning">Scanning</option>
-                        <option value="No_Scanning">No_Scanning</option>
-                      </select>
+                        {step.type}
+                      </span>
                     </td>
                     <td className="pr-2 pb-2">
-                      <select
-                        value={step.scan}
-                        onChange={(e) => updateStep(index, "scan", e.target.value)}
-                        className="w-full border rounded px-2 py-1.5"
+                      <span
+                        className="inline-block px-2 py-1.5 rounded text-xs w-full text-center bg-slate-100 text-slate-500"
+                        title="Auto-set from the Operation's Scanning Type in Operations master"
                       >
-                        <option value="Serial No">Serial No</option>
-                        <option value="None">None</option>
-                      </select>
+                        {step.scan}
+                      </span>
                     </td>
                     <td className="pb-2">
                       <button
