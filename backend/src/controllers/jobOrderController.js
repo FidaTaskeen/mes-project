@@ -119,7 +119,7 @@ exports.getJobOrderById = async (req, res) => {
       .populate('item', 'itemCode name description unitOfMeasure')
       .populate({
         path: 'routing',
-        populate: { path: 'steps.operation', select: 'operationCode operationName workCenter' },
+        populate: { path: 'steps.operation', select: 'operationCode operationName workCenter routingType' },
       });
 
     if (!jobOrder) {
@@ -216,7 +216,7 @@ exports.getProductionMonitoring = async (req, res) => {
       .populate('item', 'itemCode name')
       .populate({
         path: 'routing',
-        populate: { path: 'steps.operation', select: 'operationCode operationName workCenter' },
+        populate: { path: 'steps.operation', select: 'operationCode operationName workCenter routingType' },
       })
       .sort({ startDate: 1 });
 
