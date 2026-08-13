@@ -97,7 +97,7 @@ export default function RoutingView() {
             </div>
             <div>
               <div className="text-slate-400 text-xs">First Scan Operation</div>
-              <div className="font-medium">{opLabel(routing.firstScanningOperation)}</div>
+              <div className="font-medium">{opLabel(routing.firstScanOperation)}</div>
             </div>
             <div>
               <div className="text-slate-400 text-xs">Last Scan Operation</div>

@@ -64,7 +64,22 @@ export default function JobOrderDetails() {
     );
   }
 
-  const steps = jobOrder.routing?.steps || [];
+  const routing = jobOrder.routing || {};
+  const allSteps = [...(routing.steps || [])].sort((a, b) => a.sequenceNo - b.sequenceNo);
+
+  // Only show the operations between First Scan Operation and Last Scan Operation (inclusive),
+  // based on their position (sequenceNo) in the routing. Falls back to the full routing if
+  // either marker can't be matched to an actual routing line.
+  const firstOpId = routing.firstScanOperation?._id || routing.firstScanOperation;
+  const lastOpId = routing.lastScanOperation?._id || routing.lastScanOperation;
+
+  const firstStep = allSteps.find((s) => (s.operation?._id || s.operation) === firstOpId);
+  const lastStep = allSteps.find((s) => (s.operation?._id || s.operation) === lastOpId);
+
+  const steps =
+    firstStep && lastStep
+      ? allSteps.filter((s) => s.sequenceNo >= firstStep.sequenceNo && s.sequenceNo <= lastStep.sequenceNo)
+      : allSteps;
 
   const stationRows = steps.map((step) => {
     const opId = step.operation?._id || step.operation;
