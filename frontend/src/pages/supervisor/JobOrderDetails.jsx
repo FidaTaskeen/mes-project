@@ -159,7 +159,13 @@ export default function JobOrderDetails() {
             </div>
             <div className="flex justify-between text-xs text-slate-500">
               {stationRows.map((s, i) => (
-                <span key={i} className="truncate">{s.stationCode}</span>
+                <span key={i} className="truncate font-medium">
+                  {s.stationCode}
+                  {i === 0 && <span className="text-blue-500"> (Start)</span>}
+                  {i === stationRows.length - 1 && stationRows.length > 1 && (
+                    <span className="text-purple-500"> (End)</span>
+                  )}
+                </span>
               ))}
             </div>
           </div>
@@ -186,6 +192,16 @@ export default function JobOrderDetails() {
                       <td className="px-4 py-3 font-medium">
                         <span className={`inline-block w-2 h-2 rounded-full mr-2 ${row.scanType === "Scanning" ? "bg-green-500" : "bg-slate-300"}`} />
                         {row.stationCode}
+                        {i === 0 && (
+                          <span className="ml-2 text-[10px] font-semibold bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">
+                            START
+                          </span>
+                        )}
+                        {i === stationRows.length - 1 && stationRows.length > 1 && (
+                          <span className="ml-2 text-[10px] font-semibold bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded">
+                            END
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-slate-500">{row.operationName}</td>
                       <td className="px-4 py-3 text-slate-500">{row.routingType}</td>
