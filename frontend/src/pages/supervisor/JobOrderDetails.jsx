@@ -280,6 +280,22 @@ export default function JobOrderDetails() {
                 <div className="text-xs text-slate-400">Quantity / Produced</div>
                 <div className="font-medium">{jobOrder.quantity} / {jobOrder.completedQuantity}</div>
               </div>
+              <div>
+                <div className="text-xs text-slate-400">First Scan Operation</div>
+                <div className="font-medium">
+                  {routing.firstScanOperation
+                    ? `${routing.firstScanOperation.operationCode} - ${routing.firstScanOperation.operationName}`
+                    : "—"}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-400">Last Scan Operation</div>
+                <div className="font-medium">
+                  {routing.lastScanOperation
+                    ? `${routing.lastScanOperation.operationCode} - ${routing.lastScanOperation.operationName}`
+                    : "—"}
+                </div>
+              </div>
             </div>
           </div>
         </div>

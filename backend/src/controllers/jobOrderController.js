@@ -117,9 +117,14 @@ exports.getJobOrderById = async (req, res) => {
   try {
     const jobOrder = await JobOrder.findById(req.params.id)
       .populate('item', 'itemCode name description unitOfMeasure')
+      .populate('createdBy', 'name userId')
       .populate({
         path: 'routing',
-        populate: { path: 'steps.operation', select: 'operationCode operationName workCenter routingType' },
+        populate: [
+          { path: 'steps.operation', select: 'operationCode operationName workCenter routingType' },
+          { path: 'firstScanOperation', select: 'operationCode operationName' },
+          { path: 'lastScanOperation', select: 'operationCode operationName' },
+        ],
       });
 
     if (!jobOrder) {
