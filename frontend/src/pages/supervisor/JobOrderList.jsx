@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Pencil, PauseCircle, PlayCircle, CheckCircle2, Trash2 } from "lucide-react";
+import { Pencil, PauseCircle, PlayCircle, Trash2 } from "lucide-react";
 import Layout from "../../components/Layout";
 import axiosInstance from "../../api/axiosInstance";
 
@@ -127,6 +127,7 @@ export default function JobOrderList() {
   };
 
   const setStatus = async (jo, status) => {
+    setError("");
     try {
       await axiosInstance.put(`/joborders/${jo._id}`, { status });
       loadData();
@@ -306,15 +307,6 @@ export default function JobOrderList() {
                         title={jo.status === "On Hold" ? "Currently paused - click to resume" : "Pause"}
                       >
                         {jo.status === "On Hold" ? <PlayCircle size={14} /> : <PauseCircle size={14} />}
-                      </button>
-                      <button
-                        onClick={() => setStatus(jo, "Completed")}
-                        className={`w-7 h-7 rounded flex items-center justify-center ${
-                          jo.status === "Completed" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600 hover:bg-green-50 hover:text-green-600"
-                        }`}
-                        title="Mark Completed"
-                      >
-                        <CheckCircle2 size={14} />
                       </button>
                       <button
                         onClick={() => handleDelete(jo)}
