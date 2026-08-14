@@ -123,7 +123,7 @@ exports.updateRouting = async (req, res) => {
       }
     }
 
-   const stepsChanged = steps && JSON.stringify(steps) !== JSON.stringify(routing.steps.toObject());
+    const stepsChanged = steps && JSON.stringify(steps) !== JSON.stringify(routing.steps.toObject());
 
     routing.routingCode = routingCode ?? routing.routingCode;
     routing.steps = steps ?? routing.steps;
