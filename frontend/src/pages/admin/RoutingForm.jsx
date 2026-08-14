@@ -25,6 +25,11 @@ const deriveLineFields = (operation) => {
   return { type: "No_Scanning", scan: "None" };
 };
 
+const versionNum = (v) => {
+  const m = /(\d+)/.exec(v || "");
+  return m ? parseInt(m[1], 10) : 0;
+};
+
 const emptyForm = {
   routingCode: "",
   bom: "",
@@ -46,6 +51,8 @@ export default function RoutingForm() {
   const [operations, setOperations] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [originalVersion, setOriginalVersion] = useState(null);
+  const [versionOptions, setVersionOptions] = useState([]); // [{version, isCurrent, steps, firstScanOperation, lastScanOperation, description, status}]
+  const [viewingVersion, setViewingVersion] = useState(null); // which version is selected in the dropdown right now
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -123,12 +130,32 @@ export default function RoutingForm() {
         })),
       });
       setOriginalVersion(routing.version || "Version 1");
+
+      // Build the full list of selectable versions: current + all history, newest first
+      const current = {
+        version: routing.version || "Version 1",
+        isCurrent: true,
+        steps: routing.steps || [],
+        firstScanOperation: routing.firstScanOperation,
+        lastScanOperation: routing.lastScanOperation,
+        description: routing.description || "",
+        status: routing.status,
+      };
+      const history = (routing.versionHistory || []).map((h) => ({ ...h, isCurrent: false }));
+      const all = [current, ...history].sort((a, b) => versionNum(b.version) - versionNum(a.version));
+      setVersionOptions(all);
+      setViewingVersion(current.version);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load routing");
     } finally {
       setLoading(false);
     }
   };
+
+  const isViewingHistorical = viewingVersion && viewingVersion !== originalVersion;
+  const historicalData = isViewingHistorical
+    ? versionOptions.find((v) => v.version === viewingVersion)
+    : null;
 
   const handleItemChange = (bomId) => {
     const bom = boms.find((b) => b._id === bomId);
@@ -179,6 +206,11 @@ export default function RoutingForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    if (isViewingHistorical) {
+      setError("You're viewing a past version - switch back to the current version to make changes.");
+      return;
+    }
 
     if (!form.firstScanOperation || !form.lastScanOperation) {
       setError("First Scan Operation and Last Scan Operation are both mandatory");
@@ -236,6 +268,10 @@ export default function RoutingForm() {
     );
   }
 
+  // What to actually render in the "Routing Lines" section + First/Last Scan Operation:
+  // either the live editable form, or a read-only historical snapshot.
+  const displaySteps = isViewingHistorical ? historicalData?.steps || [] : form.steps;
+
   return (
     <Layout portalName="Admin Portal" theme="blue" navGroups={navGroups}>
       <button
@@ -252,6 +288,12 @@ export default function RoutingForm() {
 
       {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>}
 
+      {isViewingHistorical && (
+        <div className="bg-amber-50 text-amber-700 text-sm p-3 rounded-lg mb-4">
+          Viewing a past version ({viewingVersion}) — read-only. Switch back to {originalVersion} (current) to make changes.
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="bg-white rounded-xl border p-6">
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5">
           <div>
@@ -265,7 +307,8 @@ export default function RoutingForm() {
               value={form.bom}
               onChange={(e) => handleItemChange(e.target.value)}
               required
-              className="w-full border rounded px-3 py-2"
+              disabled={isViewingHistorical}
+              className="w-full border rounded px-3 py-2 disabled:bg-slate-100"
             >
               <option value="">Select Item</option>
               {boms.map((bom) => (
@@ -279,9 +322,10 @@ export default function RoutingForm() {
           <div>
             <label className="block text-sm font-medium mb-1">Status</label>
             <select
-              value={form.status}
+              value={isViewingHistorical ? historicalData?.status || "" : form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value })}
-              className="w-full border rounded px-3 py-2"
+              disabled={isViewingHistorical}
+              className="w-full border rounded px-3 py-2 disabled:bg-slate-100"
             >
               <option value="Active">Active</option>
               <option value="Draft">Draft</option>
@@ -292,7 +336,7 @@ export default function RoutingForm() {
           <div className="col-span-2 md:col-span-3">
             <label className="block text-sm font-medium mb-1">Description</label>
             <input
-              value={form.description}
+              value={isViewingHistorical ? historicalData?.description || "" : form.description}
               readOnly
               placeholder="Auto-filled from the selected Item"
               className="w-full border rounded px-3 py-2 bg-slate-100"
@@ -301,48 +345,86 @@ export default function RoutingForm() {
 
           <div>
             <label className="block text-sm font-medium mb-1">
-              First Scan Operation <span className="text-red-500">*</span>
+              First Scan Operation {!isViewingHistorical && <span className="text-red-500">*</span>}
             </label>
-            <select
-              value={form.firstScanOperation}
-              onChange={(e) => setForm({ ...form, firstScanOperation: e.target.value })}
-              required
-              className="w-full border rounded px-3 py-2"
-            >
-              <option value="">Select Operation</option>
-              {operations.map((op) => (
-                <option key={op._id} value={op._id}>{op.operationCode} - {op.operationName}</option>
-              ))}
-            </select>
+            {isViewingHistorical ? (
+              <input
+                readOnly
+                value={
+                  historicalData?.firstScanOperation
+                    ? `${historicalData.firstScanOperation.operationCode} - ${historicalData.firstScanOperation.operationName}`
+                    : "—"
+                }
+                className="w-full border rounded px-3 py-2 bg-slate-100"
+              />
+            ) : (
+              <select
+                value={form.firstScanOperation}
+                onChange={(e) => setForm({ ...form, firstScanOperation: e.target.value })}
+                required
+                className="w-full border rounded px-3 py-2"
+              >
+                <option value="">Select Operation</option>
+                {operations.map((op) => (
+                  <option key={op._id} value={op._id}>{op.operationCode} - {op.operationName}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-1">
-              Last Scan Operation <span className="text-red-500">*</span>
+              Last Scan Operation {!isViewingHistorical && <span className="text-red-500">*</span>}
             </label>
-            <select
-              value={form.lastScanOperation}
-              onChange={(e) => setForm({ ...form, lastScanOperation: e.target.value })}
-              required
-              className="w-full border rounded px-3 py-2"
-            >
-              <option value="">Select Operation</option>
-              {operations.map((op) => (
-                <option key={op._id} value={op._id}>{op.operationCode} - {op.operationName}</option>
-              ))}
-            </select>
+            {isViewingHistorical ? (
+              <input
+                readOnly
+                value={
+                  historicalData?.lastScanOperation
+                    ? `${historicalData.lastScanOperation.operationCode} - ${historicalData.lastScanOperation.operationName}`
+                    : "—"
+                }
+                className="w-full border rounded px-3 py-2 bg-slate-100"
+              />
+            ) : (
+              <select
+                value={form.lastScanOperation}
+                onChange={(e) => setForm({ ...form, lastScanOperation: e.target.value })}
+                required
+                className="w-full border rounded px-3 py-2"
+              >
+                <option value="">Select Operation</option>
+                {operations.map((op) => (
+                  <option key={op._id} value={op._id}>{op.operationCode} - {op.operationName}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-1">Version</label>
-            <input
-              value={form.version}
-              onChange={(e) => setForm({ ...form, version: e.target.value })}
-              className="w-full border rounded px-3 py-2"
-            />
-            {isEditing && (
+            {isEditing && versionOptions.length > 0 ? (
+              <select
+                value={viewingVersion || ""}
+                onChange={(e) => setViewingVersion(e.target.value)}
+                className="w-full border rounded px-3 py-2"
+              >
+                {versionOptions.map((v) => (
+                  <option key={v.version} value={v.version}>
+                    {v.version}{v.isCurrent ? " (current)" : ""}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={form.version}
+                onChange={(e) => setForm({ ...form, version: e.target.value })}
+                className="w-full border rounded px-3 py-2"
+              />
+            )}
+            {isEditing && !isViewingHistorical && (
               <p className="text-xs text-slate-400 mt-1">
-                Leave unchanged to auto-increment when routing lines change, or type a specific version to override.
+                Auto-increments when routing lines change on save.
               </p>
             )}
           </div>
@@ -350,14 +432,18 @@ export default function RoutingForm() {
 
         <div className="border rounded-lg p-4">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-semibold">Routing Lines ({form.steps.length})</h3>
-            <button type="button" onClick={addStep} className="text-blue-600 text-sm font-medium">
-              + Add Line
-            </button>
+            <h3 className="font-semibold">
+              Routing Lines ({displaySteps.length}){isViewingHistorical ? ` — ${viewingVersion}` : ""}
+            </h3>
+            {!isViewingHistorical && (
+              <button type="button" onClick={addStep} className="text-blue-600 text-sm font-medium">
+                + Add Line
+              </button>
+            )}
           </div>
 
-          {form.steps.length === 0 && (
-            <p className="text-sm text-slate-400 mb-2">No routing lines added yet.</p>
+          {displaySteps.length === 0 && (
+            <p className="text-sm text-slate-400 mb-2">No routing lines.</p>
           )}
 
           <div className="overflow-x-auto">
@@ -365,82 +451,93 @@ export default function RoutingForm() {
               <thead>
                 <tr className="text-left text-xs text-slate-500">
                   <th className="pb-2 pr-2 min-w-[180px]">Operation</th>
-                  <th className="pb-2 pr-2 min-w-[180px]">Previous Operation</th>
+                  {!isViewingHistorical && <th className="pb-2 pr-2 min-w-[180px]">Previous Operation</th>}
                   <th className="pb-2 pr-2 w-28">Stage</th>
                   <th className="pb-2 pr-2 w-36">Type</th>
                   <th className="pb-2 pr-2 w-28">Scan</th>
-                  <th className="pb-2 w-20">Action</th>
+                  {!isViewingHistorical && <th className="pb-2 w-20">Action</th>}
                 </tr>
               </thead>
               <tbody>
-                {form.steps.map((step, index) => (
-                  <tr key={index} className="align-top">
-                    <td className="pr-2 pb-2">
-                      <select
-                        value={step.operation}
-                        onChange={(e) => updateStep(index, "operation", e.target.value)}
-                        className="w-full border rounded px-2 py-1.5"
-                      >
-                        <option value="">Select Operation</option>
-                        {operations.map((op) => (
-                          <option key={op._id} value={op._id}>{op.operationCode} - {op.operationName}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="pr-2 pb-2">
-                      <select
-                        value={step.previousOperation}
-                        onChange={(e) => updateStep(index, "previousOperation", e.target.value)}
-                        className="w-full border rounded px-2 py-1.5"
-                      >
-                        <option value="">None</option>
-                        {operations.map((op) => (
-                          <option key={op._id} value={op._id}>{op.operationCode} - {op.operationName}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="pr-2 pb-2">
-                      <select
-                        value={step.stage}
-                        onChange={(e) => updateStep(index, "stage", e.target.value)}
-                        className="w-full border rounded px-2 py-1.5"
-                      >
-                        <option value="Start">Start</option>
-                        <option value="Middle">Middle</option>
-                        <option value="End">End</option>
-                      </select>
-                    </td>
-                    <td className="pr-2 pb-2">
-                      <span
-                        className={`inline-block px-2 py-1.5 rounded text-xs w-full text-center ${
-                          step.type === "Scanning"
-                            ? "bg-blue-100 text-blue-700"
-                            : "bg-slate-100 text-slate-500"
-                        }`}
-                        title="Auto-set from the Operation's Scanning Type in Operations master"
-                      >
-                        {step.type}
-                      </span>
-                    </td>
-                    <td className="pr-2 pb-2">
-                      <span
-                        className="inline-block px-2 py-1.5 rounded text-xs w-full text-center bg-slate-100 text-slate-500"
-                        title="Auto-set from the Operation's Scanning Type in Operations master"
-                      >
-                        {step.scan}
-                      </span>
-                    </td>
-                    <td className="pb-2">
-                      <button
-                        type="button"
-                        onClick={() => removeStep(index)}
-                        className="text-red-600 hover:underline text-xs"
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {isViewingHistorical
+                  ? displaySteps.map((step, index) => (
+                      <tr key={index} className="align-top border-t">
+                        <td className="pr-2 py-2">
+                          {step.operation ? `${step.operation.operationCode} - ${step.operation.operationName}` : "—"}
+                        </td>
+                        <td className="pr-2 py-2">{step.stage}</td>
+                        <td className="pr-2 py-2">{step.type}</td>
+                        <td className="pr-2 py-2">{step.scan}</td>
+                      </tr>
+                    ))
+                  : form.steps.map((step, index) => (
+                      <tr key={index} className="align-top">
+                        <td className="pr-2 pb-2">
+                          <select
+                            value={step.operation}
+                            onChange={(e) => updateStep(index, "operation", e.target.value)}
+                            className="w-full border rounded px-2 py-1.5"
+                          >
+                            <option value="">Select Operation</option>
+                            {operations.map((op) => (
+                              <option key={op._id} value={op._id}>{op.operationCode} - {op.operationName}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="pr-2 pb-2">
+                          <select
+                            value={step.previousOperation}
+                            onChange={(e) => updateStep(index, "previousOperation", e.target.value)}
+                            className="w-full border rounded px-2 py-1.5"
+                          >
+                            <option value="">None</option>
+                            {operations.map((op) => (
+                              <option key={op._id} value={op._id}>{op.operationCode} - {op.operationName}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="pr-2 pb-2">
+                          <select
+                            value={step.stage}
+                            onChange={(e) => updateStep(index, "stage", e.target.value)}
+                            className="w-full border rounded px-2 py-1.5"
+                          >
+                            <option value="Start">Start</option>
+                            <option value="Middle">Middle</option>
+                            <option value="End">End</option>
+                          </select>
+                        </td>
+                        <td className="pr-2 pb-2">
+                          <span
+                            className={`inline-block px-2 py-1.5 rounded text-xs w-full text-center ${
+                              step.type === "Scanning"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-slate-100 text-slate-500"
+                            }`}
+                            title="Auto-set from the Operation's Scanning Type in Operations master"
+                          >
+                            {step.type}
+                          </span>
+                        </td>
+                        <td className="pr-2 pb-2">
+                          <span
+                            className="inline-block px-2 py-1.5 rounded text-xs w-full text-center bg-slate-100 text-slate-500"
+                            title="Auto-set from the Operation's Scanning Type in Operations master"
+                          >
+                            {step.scan}
+                          </span>
+                        </td>
+                        <td className="pb-2">
+                          <button
+                            type="button"
+                            onClick={() => removeStep(index)}
+                            className="text-red-600 hover:underline text-xs"
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
               </tbody>
             </table>
           </div>
@@ -450,13 +547,15 @@ export default function RoutingForm() {
           <button type="button" onClick={handleCancel} className="px-4 py-2 text-slate-600">
             Cancel
           </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="bg-blue-600 text-white px-5 py-2 rounded-lg disabled:opacity-50"
-          >
-            {saving ? "Saving..." : isEditing ? "Update" : "Save Routing"}
-          </button>
+          {!isViewingHistorical && (
+            <button
+              type="submit"
+              disabled={saving}
+              className="bg-blue-600 text-white px-5 py-2 rounded-lg disabled:opacity-50"
+            >
+              {saving ? "Saving..." : isEditing ? "Update" : "Save Routing"}
+            </button>
+          )}
         </div>
       </form>
     </Layout>

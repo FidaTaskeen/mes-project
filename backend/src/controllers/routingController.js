@@ -1,563 +1,181 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
-import Layout from "../../components/Layout";
-import axiosInstance from "../../api/axiosInstance";
+const Routing = require('../models/Routing');
+const Item = require('../models/Item');
+const Operation = require('../models/Operation');
+const BOM = require('../models/BOM');
 
-const navGroups = [
-  { items: [{ label: "Admin Dashboard", path: "/admin/dashboard" }] },
-  {
-    title: "MASTER DATA",
-    items: [
-      { label: "Items", path: "/admin/items" },
-      { label: "Operations", path: "/admin/operations" },
-      { label: "BOM", path: "/admin/bom" },
-      { label: "Routing", path: "/admin/routing" },
-      { label: "Users", path: "/admin/users" },
-    ],
-  },
+const POPULATE_LIST = [
+  { path: 'item', select: 'itemCode name description' },
+  { path: 'bom', select: 'bomCode' },
+  { path: 'steps.operation', select: 'operationCode operationName workCenter routingType' },
+  { path: 'firstScanOperation', select: 'operationCode operationName' },
+  { path: 'lastScanOperation', select: 'operationCode operationName' },
+  { path: 'createdBy', select: 'name userId' },
+  { path: 'versionHistory.steps.operation', select: 'operationCode operationName workCenter routingType' },
+  { path: 'versionHistory.firstScanOperation', select: 'operationCode operationName' },
+  { path: 'versionHistory.lastScanOperation', select: 'operationCode operationName' },
 ];
 
-const deriveLineFields = (operation) => {
-  if (operation?.scanningType === "Scan") {
-    return { type: "Scanning", scan: "Serial No" };
-  }
-  return { type: "No_Scanning", scan: "None" };
-};
+exports.createRouting = async (req, res) => {
+  try {
+    const {
+      routingCode, bom, steps, status, version, description,
+      firstScanOperation, lastScanOperation,
+    } = req.body;
 
-const opLabel = (op) => (op ? `${op.operationCode} - ${op.operationName}` : "—");
-
-const emptyForm = {
-  routingCode: "",
-  bom: "",
-  status: "Active",
-  version: "Version 1",
-  description: "",
-  firstScanOperation: "",
-  lastScanOperation: "",
-  steps: [],
-};
-
-export default function RoutingForm() {
-  const navigate = useNavigate();
-  const { id } = useParams();
-  const isEditing = !!id;
-
-  const [boms, setBoms] = useState([]);
-  const [items, setItems] = useState([]);
-  const [operations, setOperations] = useState([]);
-  const [form, setForm] = useState(emptyForm);
-  const [originalVersion, setOriginalVersion] = useState(null);
-  const [versionHistory, setVersionHistory] = useState([]);
-  const [viewingVersion, setViewingVersion] = useState(null); // null = editing current; else a snapshot object
-  const [loading, setLoading] = useState(isEditing);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    loadBoms();
-    loadItems();
-    loadOperations();
-    if (isEditing) loadExisting();
-    else generateCode();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const loadItems = async () => {
-    try {
-      const res = await axiosInstance.get("/items/active/list");
-      setItems(res.data.items || []);
-    } catch (err) {
-      console.error(err);
+    if (!routingCode || !bom || !steps || steps.length === 0) {
+      return res.status(400).json({ message: 'Routing code, BOM, and at least one step are required' });
     }
-  };
-
-  const loadBoms = async () => {
-    try {
-      const res = await axiosInstance.get("/boms?limit=100");
-      setBoms((res.data.boms || []).filter((b) => b.status === "Active"));
-    } catch (err) {
-      console.error(err);
+    if (!firstScanOperation || !lastScanOperation) {
+      return res.status(400).json({ message: 'First Scan Operation and Last Scan Operation are required' });
     }
-  };
 
-  const loadOperations = async () => {
-    try {
-      const res = await axiosInstance.get("/operations/active/list");
-      setOperations(res.data.operations || []);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+    const existing = await Routing.findOne({ routingCode: routingCode.toUpperCase() });
+    if (existing) return res.status(409).json({ message: 'A routing with this code already exists' });
 
-  const generateCode = async () => {
-    try {
-      const res = await axiosInstance.get("/routings?limit=100");
-      const next = (res.data.routings || []).length + 1;
-      setForm((f) => ({ ...f, routingCode: `RT-${String(next).padStart(3, "0")}` }));
-    } catch {
-      setForm((f) => ({ ...f, routingCode: `RT-001` }));
-    }
-  };
+    const bomExists = await BOM.findById(bom);
+    if (!bomExists) return res.status(404).json({ message: 'BOM not found' });
 
-  const loadExisting = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await axiosInstance.get("/routings?limit=100");
-      const routing = (res.data.routings || []).find((r) => r._id === id);
-      if (!routing) {
-        setError("Routing not found");
-        return;
+    const item = bomExists.parentItem;
+
+    for (const step of steps) {
+      if (!step.operation) {
+        return res.status(400).json({ message: 'Every routing line must have an Operation selected' });
       }
-      setForm({
-        routingCode: routing.routingCode,
-        bom: routing.bom?._id || routing.bom,
-        status: routing.status,
-        version: routing.version || "Version 1",
-        description: routing.description || "",
-        firstScanOperation: routing.firstScanOperation?._id || routing.firstScanOperation || "",
-        lastScanOperation: routing.lastScanOperation?._id || routing.lastScanOperation || "",
-        steps: routing.steps.map((s) => ({
-          operation: s.operation?._id || s.operation,
-          stage: s.stage || "Middle",
-          previousOperation: s.previousOperation?._id || s.previousOperation || "",
-          type: s.type || "No_Scanning",
-          scan: s.scan || "None",
-        })),
-      });
-      setOriginalVersion(routing.version || "Version 1");
-      setVersionHistory(routing.versionHistory || []);
-      setViewingVersion(null);
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to load routing");
-    } finally {
-      setLoading(false);
+      const opExists = await Operation.findById(step.operation);
+      if (!opExists) return res.status(404).json({ message: `Operation not found: ${step.operation}` });
     }
-  };
 
-  const handleItemChange = (bomId) => {
-    const bom = boms.find((b) => b._id === bomId);
-    const item = items.find((i) => i._id === (bom?.parentItem?._id || bom?.parentItem));
-    setForm({ ...form, bom: bomId, description: item?.description || "" });
-  };
-
-  const addStep = () => {
-    setForm({
-      ...form,
-      steps: [
-        ...form.steps,
-        { operation: "", stage: "Middle", previousOperation: "", type: "No_Scanning", scan: "None" },
-      ],
+    const routing = await Routing.create({
+      routingCode, item, bom, steps, status, version, description,
+      firstScanOperation, lastScanOperation,
+      createdBy: req.user.id,
     });
-  };
 
-  const updateStep = (index, field, value) => {
-    const updated = [...form.steps];
-    updated[index][field] = value;
-
-    if (field === "operation") {
-      const op = operations.find((o) => o._id === value);
-      Object.assign(updated[index], deriveLineFields(op));
-    }
-
-    setForm({ ...form, steps: updated });
-  };
-
-  const removeStep = (index) => {
-    setForm({ ...form, steps: form.steps.filter((_, i) => i !== index) });
-  };
-
-  const handleCancel = () => {
-    setError("");
-    if (isEditing) {
-      loadExisting();
-    } else {
-      setForm(emptyForm);
-      generateCode();
-    }
-  };
-
-  const handleVersionSelect = (value) => {
-    if (value === "current") {
-      setViewingVersion(null);
-      return;
-    }
-    const snapshot = versionHistory.find((v) => v.version === value);
-    setViewingVersion(snapshot || null);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-
-    if (!form.firstScanOperation || !form.lastScanOperation) {
-      setError("First Scan Operation and Last Scan Operation are both mandatory");
-      return;
-    }
-    if (form.steps.length === 0) {
-      setError("Add at least one routing line before saving");
-      return;
-    }
-    const emptyLine = form.steps.findIndex((s) => !s.operation);
-    if (emptyLine !== -1) {
-      setError(`Routing line ${emptyLine + 1} has no Operation selected`);
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const steps = form.steps.map((s, i) => {
-        const op = operations.find((o) => o._id === s.operation);
-        return {
-          ...s,
-          ...deriveLineFields(op),
-          previousOperation: s.previousOperation || null,
-          sequenceNo: (i + 1) * 10,
-        };
-      });
-      const payload = { ...form, steps };
-
-      if (isEditing && form.version === originalVersion) {
-        delete payload.version;
-      }
-
-      if (isEditing) {
-        await axiosInstance.put(`/routings/${id}`, payload);
-      } else {
-        await axiosInstance.post("/routings", payload);
-      }
-      navigate("/admin/routing");
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to save routing");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <Layout portalName="Admin Portal" theme="blue" navGroups={navGroups}>
-        <p className="text-slate-400 text-sm">Loading...</p>
-      </Layout>
-    );
+    const populated = await routing.populate(POPULATE_LIST);
+    res.status(201).json({ message: 'Routing created successfully', routing: populated });
+  } catch (err) {
+    console.error('Create routing error:', err.message);
+    res.status(500).json({ message: err.message || 'Something went wrong. Please try again.' });
   }
+};
 
-  const sortedHistory = [...versionHistory].sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+exports.getRoutings = async (req, res) => {
+  try {
+    const { search, status, item, page = 1, limit = 20 } = req.query;
 
-  return (
-    <Layout portalName="Admin Portal" theme="blue" navGroups={navGroups}>
-      <button
-        onClick={() => navigate("/admin/routing")}
-        className="flex items-center gap-1 text-sm text-slate-500 hover:text-blue-600 mb-4"
-      >
-        <ArrowLeft size={14} /> Back to Routing Master
-      </button>
+    const filter = {};
+    if (search) filter.routingCode = { $regex: search, $options: 'i' };
+    if (status) filter.status = status;
+    if (item) filter.item = item;
 
-      <div className="text-sm text-slate-500 mb-1">
-        Dashboard &gt; Masters &gt; Routing &gt; {isEditing ? "Update" : "Create"}
-      </div>
-      <h1 className="text-xl font-bold mb-5">Routing - Header</h1>
+    const routings = await Routing.find(filter)
+      .populate(POPULATE_LIST)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
 
-      {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>}
+    const total = await Routing.countDocuments(filter);
+    res.status(200).json({ routings, total, page: Number(page), totalPages: Math.ceil(total / limit) });
+  } catch (err) {
+    console.error('Get routings error:', err.message);
+    res.status(500).json({ message: err.message || 'Something went wrong. Please try again.' });
+  }
+};
 
-      <div className="bg-white rounded-xl border p-6">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5">
-          <div>
-            <label className="block text-sm font-medium mb-1">Routing Code</label>
-            <input value={form.routingCode} readOnly className="w-full border rounded px-3 py-2 bg-slate-100" />
-          </div>
+exports.getRoutingById = async (req, res) => {
+  try {
+    const routing = await Routing.findById(req.params.id).populate(POPULATE_LIST);
+    if (!routing) return res.status(404).json({ message: 'Routing not found' });
+    res.status(200).json({ routing });
+  } catch (err) {
+    console.error('Get routing error:', err.message);
+    res.status(500).json({ message: err.message || 'Something went wrong. Please try again.' });
+  }
+};
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Item No</label>
-            <select
-              value={form.bom}
-              onChange={(e) => handleItemChange(e.target.value)}
-              disabled={!!viewingVersion}
-              required
-              className="w-full border rounded px-3 py-2 disabled:bg-slate-100"
-            >
-              <option value="">Select Item</option>
-              {boms.map((bom) => (
-                <option key={bom._id} value={bom._id}>
-                  {bom.parentItem?.itemCode}
-                </option>
-              ))}
-            </select>
-          </div>
+exports.updateRouting = async (req, res) => {
+  try {
+    const {
+      routingCode, bom, steps, status, version, description,
+      firstScanOperation, lastScanOperation,
+    } = req.body;
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Status</label>
-            <select
-              value={form.status}
-              onChange={(e) => setForm({ ...form, status: e.target.value })}
-              disabled={!!viewingVersion}
-              className="w-full border rounded px-3 py-2 disabled:bg-slate-100"
-            >
-              <option value="Active">Active</option>
-              <option value="Draft">Draft</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-          </div>
+    const routing = await Routing.findById(req.params.id);
+    if (!routing) return res.status(404).json({ message: 'Routing not found' });
 
-          <div className="col-span-2 md:col-span-3">
-            <label className="block text-sm font-medium mb-1">Description</label>
-            <input
-              value={viewingVersion ? viewingVersion.description : form.description}
-              readOnly
-              placeholder="Auto-filled from the selected Item"
-              className="w-full border rounded px-3 py-2 bg-slate-100"
-            />
-          </div>
+    if (routingCode && routingCode.toUpperCase() !== routing.routingCode) {
+      const existing = await Routing.findOne({ routingCode: routingCode.toUpperCase() });
+      if (existing) return res.status(409).json({ message: 'Another routing already uses this code' });
+    }
 
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              First Scan Operation {!viewingVersion && <span className="text-red-500">*</span>}
-            </label>
-            {viewingVersion ? (
-              <input
-                value={opLabel(viewingVersion.firstScanOperation)}
-                readOnly
-                className="w-full border rounded px-3 py-2 bg-slate-100"
-              />
-            ) : (
-              <select
-                value={form.firstScanOperation}
-                onChange={(e) => setForm({ ...form, firstScanOperation: e.target.value })}
-                required
-                className="w-full border rounded px-3 py-2"
-              >
-                <option value="">Select Operation</option>
-                {operations.map((op) => (
-                  <option key={op._id} value={op._id}>{op.operationCode} - {op.operationName}</option>
-                ))}
-              </select>
-            )}
-          </div>
+    if (bom) {
+      const bomExists = await BOM.findById(bom);
+      if (!bomExists) return res.status(404).json({ message: 'BOM not found' });
+      routing.bom = bom;
+      routing.item = bomExists.parentItem;
+    }
 
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Last Scan Operation {!viewingVersion && <span className="text-red-500">*</span>}
-            </label>
-            {viewingVersion ? (
-              <input
-                value={opLabel(viewingVersion.lastScanOperation)}
-                readOnly
-                className="w-full border rounded px-3 py-2 bg-slate-100"
-              />
-            ) : (
-              <select
-                value={form.lastScanOperation}
-                onChange={(e) => setForm({ ...form, lastScanOperation: e.target.value })}
-                required
-                className="w-full border rounded px-3 py-2"
-              >
-                <option value="">Select Operation</option>
-                {operations.map((op) => (
-                  <option key={op._id} value={op._id}>{op.operationCode} - {op.operationName}</option>
-                ))}
-              </select>
-            )}
-          </div>
+    if (steps) {
+      for (const step of steps) {
+        if (!step.operation) {
+          return res.status(400).json({ message: 'Every routing line must have an Operation selected' });
+        }
+        const opExists = await Operation.findById(step.operation);
+        if (!opExists) return res.status(404).json({ message: `Operation not found: ${step.operation}` });
+      }
+    }
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Version</label>
-            {isEditing ? (
-              <select
-                value={viewingVersion ? viewingVersion.version : "current"}
-                onChange={(e) => handleVersionSelect(e.target.value)}
-                className="w-full border rounded px-3 py-2"
-              >
-                <option value="current">{form.version} (Current)</option>
-                {sortedHistory.map((v, i) => (
-                  <option key={i} value={v.version}>{v.version}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                value={form.version}
-                onChange={(e) => setForm({ ...form, version: e.target.value })}
-                className="w-full border rounded px-3 py-2"
-              />
-            )}
-            {isEditing && !viewingVersion && (
-              <p className="text-xs text-slate-400 mt-1">
-                Leave unchanged to auto-increment when routing lines change, or type a specific version to override.
-              </p>
-            )}
-          </div>
-        </div>
+    const stepsChanged = steps && JSON.stringify(steps) !== JSON.stringify(routing.steps.toObject());
 
-        {viewingVersion ? (
-          <div className="border rounded-lg p-4 bg-slate-50">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-semibold">
-                Routing Lines — {viewingVersion.version} (Read Only)
-              </h3>
-              <span className="text-xs text-slate-400">
-                Saved on {new Date(viewingVersion.savedAt).toLocaleString()}
-              </span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-slate-500">
-                    <th className="pb-2 pr-2">Operation</th>
-                    <th className="pb-2 pr-2">Previous Operation</th>
-                    <th className="pb-2 pr-2">Stage</th>
-                    <th className="pb-2 pr-2">Type</th>
-                    <th className="pb-2 pr-2">Scan</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {viewingVersion.steps?.map((s, i) => (
-                    <tr key={i} className="border-t">
-                      <td className="py-2 pr-2">{opLabel(s.operation)}</td>
-                      <td className="py-2 pr-2">{opLabel(s.previousOperation)}</td>
-                      <td className="py-2 pr-2">{s.stage}</td>
-                      <td className="py-2 pr-2">{s.type}</td>
-                      <td className="py-2 pr-2">{s.scan}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : (
-          <div className="border rounded-lg p-4">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-semibold">Routing Lines ({form.steps.length})</h3>
-              <button type="button" onClick={addStep} className="text-blue-600 text-sm font-medium">
-                + Add Line
-              </button>
-            </div>
+    // Before overwriting, snapshot the current (about-to-be-previous) state into
+    // versionHistory - but only when the routing lines actually changed, so trivial
+    // edits (e.g. just Status) don't spam the history.
+    if (stepsChanged) {
+      routing.versionHistory.push({
+        version: routing.version,
+        steps: routing.steps,
+        firstScanOperation: routing.firstScanOperation,
+        lastScanOperation: routing.lastScanOperation,
+        description: routing.description,
+        status: routing.status,
+        savedAt: new Date(),
+      });
+    }
 
-            {form.steps.length === 0 && (
-              <p className="text-sm text-slate-400 mb-2">No routing lines added yet.</p>
-            )}
+    routing.routingCode = routingCode ?? routing.routingCode;
+    routing.steps = steps ?? routing.steps;
+    routing.status = status ?? routing.status;
+    routing.description = description ?? routing.description;
+    routing.firstScanOperation = firstScanOperation ?? routing.firstScanOperation;
+    routing.lastScanOperation = lastScanOperation ?? routing.lastScanOperation;
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-slate-500">
-                    <th className="pb-2 pr-2 min-w-[180px]">Operation</th>
-                    <th className="pb-2 pr-2 min-w-[180px]">Previous Operation</th>
-                    <th className="pb-2 pr-2 w-28">Stage</th>
-                    <th className="pb-2 pr-2 w-36">Type</th>
-                    <th className="pb-2 pr-2 w-28">Scan</th>
-                    <th className="pb-2 w-20">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {form.steps.map((step, index) => (
-                    <tr key={index} className="align-top">
-                      <td className="pr-2 pb-2">
-                        <select
-                          value={step.operation}
-                          onChange={(e) => updateStep(index, "operation", e.target.value)}
-                          className="w-full border rounded px-2 py-1.5"
-                        >
-                          <option value="">Select Operation</option>
-                          {operations.map((op) => (
-                            <option key={op._id} value={op._id}>{op.operationCode} - {op.operationName}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="pr-2 pb-2">
-                        <select
-                          value={step.previousOperation}
-                          onChange={(e) => updateStep(index, "previousOperation", e.target.value)}
-                          className="w-full border rounded px-2 py-1.5"
-                        >
-                          <option value="">None</option>
-                          {operations.map((op) => (
-                            <option key={op._id} value={op._id}>{op.operationCode} - {op.operationName}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="pr-2 pb-2">
-                        <select
-                          value={step.stage}
-                          onChange={(e) => updateStep(index, "stage", e.target.value)}
-                          className="w-full border rounded px-2 py-1.5"
-                        >
-                          <option value="Start">Start</option>
-                          <option value="Middle">Middle</option>
-                          <option value="End">End</option>
-                        </select>
-                      </td>
-                      <td className="pr-2 pb-2">
-                        <span
-                          className={`inline-block px-2 py-1.5 rounded text-xs w-full text-center ${
-                            step.type === "Scanning"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-slate-100 text-slate-500"
-                          }`}
-                          title="Auto-set from the Operation's Scanning Type in Operations master"
-                        >
-                          {step.type}
-                        </span>
-                      </td>
-                      <td className="pr-2 pb-2">
-                        <span
-                          className="inline-block px-2 py-1.5 rounded text-xs w-full text-center bg-slate-100 text-slate-500"
-                          title="Auto-set from the Operation's Scanning Type in Operations master"
-                        >
-                          {step.scan}
-                        </span>
-                      </td>
-                      <td className="pb-2">
-                        <button
-                          type="button"
-                          onClick={() => removeStep(index)}
-                          className="text-red-600 hover:underline text-xs"
-                        >
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+    if (version) {
+      // Explicit version override from the client always wins
+      routing.version = version;
+    } else if (stepsChanged) {
+      // Auto-increment "Version N" -> "Version N+1" whenever routing lines actually change
+      const match = routing.version.match(/(\d+)/);
+      const currentNum = match ? parseInt(match[1], 10) : 1;
+      routing.version = `Version ${currentNum + 1}`;
+    }
 
-        <div className="flex justify-end gap-3 mt-6">
-          {viewingVersion ? (
-            <>
-              <button
-                type="button"
-                onClick={() => navigate("/admin/routing")}
-                className="px-4 py-2 text-slate-600"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewingVersion(null)}
-                className="bg-slate-700 text-white px-5 py-2 rounded-lg"
-              >
-                Back to Current Version
-              </button>
-            </>
-          ) : (
-            <>
-              <button type="button" onClick={handleCancel} className="px-4 py-2 text-slate-600">
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={saving}
-                className="bg-blue-600 text-white px-5 py-2 rounded-lg disabled:opacity-50"
-              >
-                {saving ? "Saving..." : isEditing ? "Update" : "Save Routing"}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-    </Layout>
-  );
-}
+    await routing.save();
+    const populated = await routing.populate(POPULATE_LIST);
+    res.status(200).json({ message: 'Routing updated successfully', routing: populated });
+  } catch (err) {
+    console.error('Update routing error:', err.message);
+    res.status(500).json({ message: err.message || 'Something went wrong. Please try again.' });
+  }
+};
+
+exports.deleteRouting = async (req, res) => {
+  try {
+    const routing = await Routing.findById(req.params.id);
+    if (!routing) return res.status(404).json({ message: 'Routing not found' });
+    await routing.deleteOne();
+    res.status(200).json({ message: 'Routing deleted successfully' });
+  } catch (err) {
+    console.error('Delete routing error:', err.message);
+    res.status(500).json({ message: err.message || 'Something went wrong. Please try again.' });
+  }
+};

@@ -278,6 +278,10 @@ export default function JobOrderDetails() {
                 <div className="font-medium">{stationRows[0]?.stationCode ? stationRows.find(s => s.status !== "Completed")?.stationCode || "Complete" : "—"}</div>
               </div>
               <div>
+                <div className="text-xs text-slate-400">Routing Version</div>
+                <div className="font-medium">{routing.routingCode} — {routing.version || "—"}</div>
+              </div>
+              <div>
                 <div className="text-xs text-slate-400">Quantity / Produced</div>
                 <div className="font-medium">{jobOrder.quantity} / {jobOrder.completedQuantity}</div>
               </div>

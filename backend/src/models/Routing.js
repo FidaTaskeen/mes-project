@@ -5,7 +5,6 @@ const routingStepSchema = new mongoose.Schema(
     operation: { type: mongoose.Schema.Types.ObjectId, ref: 'Operation', required: true },
     sequenceNo: { type: Number, required: true, min: 1 },
     stage: { type: String, enum: ['Start', 'Middle', 'End'], default: 'Middle' },
-    previousOperation: { type: mongoose.Schema.Types.ObjectId, ref: 'Operation', default: null },
     type: { type: String, enum: ['Scanning', 'No_Scanning'], default: 'No_Scanning' },
     scan: { type: String, enum: ['Serial No', 'None'], default: 'None' },
   },
@@ -15,10 +14,11 @@ const routingStepSchema = new mongoose.Schema(
 const versionSnapshotSchema = new mongoose.Schema(
   {
     version: { type: String, required: true },
-    description: { type: String, default: '' },
+    steps: [routingStepSchema],
     firstScanOperation: { type: mongoose.Schema.Types.ObjectId, ref: 'Operation' },
     lastScanOperation: { type: mongoose.Schema.Types.ObjectId, ref: 'Operation' },
-    steps: { type: [routingStepSchema], default: [] },
+    description: { type: String, default: '' },
+    status: { type: String },
     savedAt: { type: Date, default: Date.now },
   },
   { _id: false }
@@ -36,9 +36,9 @@ const routingSchema = new mongoose.Schema(
       type: [routingStepSchema],
       validate: { validator: (a) => a.length > 0, message: 'Routing must have at least one operation step' },
     },
-    versionHistory: { type: [versionSnapshotSchema], default: [] },
     status: { type: String, enum: ['Active', 'Draft', 'Inactive'], default: 'Active' },
     description: { type: String, trim: true, default: '' },
+    versionHistory: { type: [versionSnapshotSchema], default: [] },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true }
