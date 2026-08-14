@@ -12,6 +12,18 @@ const routingStepSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const versionSnapshotSchema = new mongoose.Schema(
+  {
+    version: { type: String, required: true },
+    description: { type: String, default: '' },
+    firstScanOperation: { type: mongoose.Schema.Types.ObjectId, ref: 'Operation' },
+    lastScanOperation: { type: mongoose.Schema.Types.ObjectId, ref: 'Operation' },
+    steps: { type: [routingStepSchema], default: [] },
+    savedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 const routingSchema = new mongoose.Schema(
   {
     routingCode: { type: String, required: true, unique: true, trim: true, uppercase: true },
@@ -24,6 +36,7 @@ const routingSchema = new mongoose.Schema(
       type: [routingStepSchema],
       validate: { validator: (a) => a.length > 0, message: 'Routing must have at least one operation step' },
     },
+    versionHistory: { type: [versionSnapshotSchema], default: [] },
     status: { type: String, enum: ['Active', 'Draft', 'Inactive'], default: 'Active' },
     description: { type: String, trim: true, default: '' },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

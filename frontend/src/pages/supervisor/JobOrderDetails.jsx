@@ -292,9 +292,11 @@ export default function JobOrderDetails() {
               <div>
                 <div className="text-xs text-slate-400">Routing / Version</div>
                 <div className="font-medium">
-                  {routing.routingCode || "—"} ({jobOrder.routingVersion || routing.version || "—"})
+                  {routing.routingCode || "—"} ({routing.version || "—"})
                 </div>
               </div>
+              <div>
+                <div className="text-xs text-slate-400">Last Scan Operation</div>
                 <div className="font-medium">
                   {routing.lastScanOperation
                     ? `${routing.lastScanOperation.operationCode} - ${routing.lastScanOperation.operationName}`
@@ -307,4 +309,4 @@ export default function JobOrderDetails() {
       </div>
     </Layout>
   );
-} 
+}
