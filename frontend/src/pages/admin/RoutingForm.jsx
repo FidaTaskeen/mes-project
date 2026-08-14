@@ -45,6 +45,7 @@ export default function RoutingForm() {
   const [items, setItems] = useState([]);
   const [operations, setOperations] = useState([]);
   const [form, setForm] = useState(emptyForm);
+  const [originalVersion, setOriginalVersion] = useState(null);
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -121,6 +122,7 @@ export default function RoutingForm() {
           scan: s.scan || "None",
         })),
       });
+      setOriginalVersion(routing.version || "Version 1");
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load routing");
     } finally {
@@ -206,6 +208,12 @@ export default function RoutingForm() {
         };
       });
       const payload = { ...form, steps };
+
+      // Only send `version` if the user actually changed it from what was loaded -
+      // otherwise let the backend auto-increment based on whether steps changed.
+      if (isEditing && form.version === originalVersion) {
+        delete payload.version;
+      }
 
       if (isEditing) {
         await axiosInstance.put(`/routings/${id}`, payload);
@@ -332,6 +340,11 @@ export default function RoutingForm() {
               onChange={(e) => setForm({ ...form, version: e.target.value })}
               className="w-full border rounded px-3 py-2"
             />
+            {isEditing && (
+              <p className="text-xs text-slate-400 mt-1">
+                Leave unchanged to auto-increment when routing lines change, or type a specific version to override.
+              </p>
+            )}
           </div>
         </div>
 
