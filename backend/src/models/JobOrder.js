@@ -19,6 +19,11 @@ const jobOrderSchema = new mongoose.Schema(
       ref: 'Routing',
       required: [true, 'Routing is required'],
     },
+    routingVersion: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     quantity: {
       type: Number,
       required: [true, 'Quantity is required'],

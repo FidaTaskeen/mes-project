@@ -123,13 +123,24 @@ exports.updateRouting = async (req, res) => {
       }
     }
 
+   const stepsChanged = steps && JSON.stringify(steps) !== JSON.stringify(routing.steps.toObject());
+
     routing.routingCode = routingCode ?? routing.routingCode;
     routing.steps = steps ?? routing.steps;
     routing.status = status ?? routing.status;
-    routing.version = version ?? routing.version;
     routing.description = description ?? routing.description;
     routing.firstScanOperation = firstScanOperation ?? routing.firstScanOperation;
     routing.lastScanOperation = lastScanOperation ?? routing.lastScanOperation;
+
+    if (version) {
+      // Explicit version override from the client always wins
+      routing.version = version;
+    } else if (stepsChanged) {
+      // Auto-increment "Version N" -> "Version N+1" whenever routing lines actually change
+      const match = routing.version.match(/(\d+)/);
+      const currentNum = match ? parseInt(match[1], 10) : 1;
+      routing.version = `Version ${currentNum + 1}`;
+    }
 
     await routing.save();
     const populated = await routing.populate(POPULATE_LIST);
