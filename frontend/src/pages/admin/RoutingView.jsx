@@ -96,6 +96,10 @@ export default function RoutingView() {
               <div className="font-medium">{routing.description || "—"}</div>
             </div>
             <div>
+              <div className="text-slate-400 text-xs">Version</div>
+              <div className="font-medium">{routing.version || "—"}</div>
+            </div>
+            <div>
               <div className="text-slate-400 text-xs">First Scan Operation</div>
               <div className="font-medium">{opLabel(routing.firstScanOperation)}</div>
             </div>
