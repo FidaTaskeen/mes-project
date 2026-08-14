@@ -169,6 +169,8 @@ export default function JobOrderList() {
     );
   };
 
+  const selectedRouting = routings.find((r) => r._id === form.routing);
+
   return (
     <Layout portalName="Supervisor Portal" theme="green" navGroups={navGroups}>
       <div className="flex justify-between items-center mb-4">
@@ -350,13 +352,19 @@ export default function JobOrderList() {
               onChange={(e) => setForm({ ...form, routing: e.target.value })}
               required
               disabled={!form.item}
-              className="w-full border rounded-lg px-3 py-2 mb-3 disabled:bg-slate-50"
+              className="w-full border rounded-lg px-3 py-2 mb-1 disabled:bg-slate-50"
             >
               <option value="">-- Select Routing --</option>
               {routings.map((r) => (
                 <option key={r._id} value={r._id}>{r.routingCode}</option>
               ))}
             </select>
+            {selectedRouting && (
+              <p className="text-xs text-slate-500 mb-3">
+                Routing Version: <span className="font-medium text-slate-700">{selectedRouting.version}</span>
+              </p>
+            )}
+            {!selectedRouting && <div className="mb-3" />}
 
             <label className="block text-sm font-medium mb-1">Quantity</label>
             <input
