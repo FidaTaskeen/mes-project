@@ -5,6 +5,9 @@ const routingStepSchema = new mongoose.Schema(
     operation: { type: mongoose.Schema.Types.ObjectId, ref: 'Operation', required: true },
     sequenceNo: { type: Number, required: true, min: 1 },
     stage: { type: String, enum: ['Start', 'Middle', 'End'], default: 'Middle' },
+    // The operation that a given serial must have already passed at, before it can be
+    // scanned at this step. Used to enforce per-serial routing sequence during scanning.
+    previousOperation: { type: mongoose.Schema.Types.ObjectId, ref: 'Operation', default: null },
     type: { type: String, enum: ['Scanning', 'No_Scanning'], default: 'No_Scanning' },
     scan: { type: String, enum: ['Serial No', 'None'], default: 'None' },
   },

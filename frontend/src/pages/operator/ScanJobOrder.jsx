@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, ScanLine } from "lucide-react";
+import { ArrowLeft, ScanLine, AlertTriangle } from "lucide-react";
 import Layout from "../../components/Layout";
 import axiosInstance from "../../api/axiosInstance";
 
@@ -32,6 +32,7 @@ export default function ScanJobOrder() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [scanError, setScanError] = useState("");
+  const [blockingError, setBlockingError] = useState(""); // shown as a popup, e.g. sequence-violation errors
   const inputRef = useRef(null);
 
   const [showAllLogs, setShowAllLogs] = useState(false);
@@ -116,7 +117,15 @@ export default function ScanJobOrder() {
       setSerialId("");
       loadJobOrderStatus(jobOrderId);
     } catch (err) {
-      setScanError(err.response?.data?.message || "Failed to record scan");
+      const message = err.response?.data?.message || "Failed to record scan";
+      // Routing-sequence violations (serial not yet scanned at the required prior
+      // operation) are surfaced as a blocking popup, matching the shopfloor scan flow.
+      if (message.includes("not scanned in the previous operation")) {
+        setBlockingError(message);
+      } else {
+        setScanError(message);
+      }
+      setSerialId("");
     }
   };
 
@@ -347,6 +356,26 @@ export default function ScanJobOrder() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {blockingError && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md text-center">
+            <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-red-50 flex items-center justify-center">
+              <AlertTriangle size={24} className="text-red-500" />
+            </div>
+            <p className="text-slate-800 font-medium mb-5">{blockingError}</p>
+            <button
+              onClick={() => {
+                setBlockingError("");
+                if (inputRef.current) inputRef.current.focus();
+              }}
+              className="bg-slate-900 text-white px-6 py-2.5 rounded-lg text-sm font-medium w-full hover:bg-slate-800"
+            >
+              CLOSE
+            </button>
           </div>
         </div>
       )}
