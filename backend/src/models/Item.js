@@ -29,6 +29,12 @@ const itemSchema = new mongoose.Schema(
       enum: ['FG', 'WIP', 'RM'],
       required: [true, 'Item type is required'],
     },
+    serialNoLength: {
+      type: Number,
+      min: 1,
+      max: 50,
+      default: null,
+    },
     status: {
       type: String,
       enum: ['Active', 'Inactive'],
@@ -40,6 +46,6 @@ const itemSchema = new mongoose.Schema(
     },
   },
   { timestamps: true }
-); 
+);
 
 module.exports = mongoose.model('Item', itemSchema);

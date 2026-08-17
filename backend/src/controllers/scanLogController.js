@@ -5,7 +5,7 @@ const User = require('../models/User');
 exports.getJobOrderStatus = async (req, res) => {
   try {
     const jobOrder = await JobOrder.findById(req.params.jobOrderId)
-      .populate('item', 'itemCode name description unitOfMeasure')
+      .populate('item', 'itemCode name description unitOfMeasure serialNoLength')
       .populate({
         path: 'routing',
         populate: { path: 'steps.operation', select: 'operationCode operationName workCenter' },
@@ -69,11 +69,6 @@ exports.addScan = async (req, res) => {
       });
     if (!jobOrder) return res.status(404).json({ message: 'Job order not found' });
 
-    if (jobOrder.item?.serialNoLength && serialId.length !== jobOrder.item.serialNoLength) {
-      return res.status(400).json({
-        message: `Serial number must be exactly ${jobOrder.item.serialNoLength} digits for ${jobOrder.item.itemCode} (you entered ${serialId.length}).`,
-      });
-    }
     if (jobOrder.status === 'Completed') {
       return res.status(400).json({ message: 'This job order is already completed.' });
     }
@@ -92,6 +87,13 @@ exports.addScan = async (req, res) => {
       if (!allowedIds.includes(String(currentStep.operation._id))) {
         return res.status(403).json({ message: 'This operation is not assigned to you.' });
       }
+    }
+
+    const expectedLength = jobOrder.item?.serialNoLength;
+    if (expectedLength && serialId.trim().length !== expectedLength) {
+      return res.status(400).json({
+        message: `Serial ID must be exactly ${expectedLength} characters for this item (got ${serialId.trim().length}).`,
+      });
     }
 
     const existingSerial = await ScanLog.findOne({ jobOrder: jobOrderId, serialId });

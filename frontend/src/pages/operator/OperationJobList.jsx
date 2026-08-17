@@ -123,7 +123,7 @@ export default function OperationJobList() {
                   <td className="px-4 py-3">{new Date(q.dueDate).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
                     <button
-                      onClick={() => navigate(`/operator/scan/${q.jobOrderId}`)}
+                      onClick={() => navigate(`/operator/scan/${q.jobOrderId}?operation=${operationId}`)}
                       className="text-purple-600 hover:underline"
                     >
                       Scan &gt;

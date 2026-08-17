@@ -106,6 +106,11 @@ export default function ScanJobOrder() {
   const handleScanSubmit = async (e) => {
     e.preventDefault();
     if (!serialId.trim()) return;
+    const expectedLength = status?.jobOrder?.item?.serialNoLength;
+    if (expectedLength && serialId.trim().length !== expectedLength) {
+      setScanError(`Serial ID must be exactly ${expectedLength} characters (got ${serialId.trim().length}).`);
+      return;
+    }
     setScanError("");
     try {
       await axiosInstance.post("/scanlogs", {
@@ -212,7 +217,7 @@ export default function ScanJobOrder() {
                 <div className="bg-red-50 text-red-600 text-sm p-2 rounded mb-3">{scanError}</div>
               )}
               <form onSubmit={handleScanSubmit}>
-                <div className="relative mb-4">
+                <div className="relative mb-1">
                   <ScanLine size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     ref={inputRef}
@@ -223,6 +228,19 @@ export default function ScanJobOrder() {
                     autoFocus
                   />
                 </div>
+                {status?.jobOrder?.item?.serialNoLength && (
+                  <p
+                    className={`text-xs mb-3 ${
+                      serialId && serialId.trim().length !== status.jobOrder.item.serialNoLength
+                        ? "text-red-500"
+                        : "text-slate-400"
+                    }`}
+                  >
+                    Expected length: {status.jobOrder.item.serialNoLength} characters
+                    {serialId && ` (currently ${serialId.trim().length})`}
+                  </p>
+                )}
+                {!status?.jobOrder?.item?.serialNoLength && <div className="mb-3" />}
                 <div className="flex gap-4 mb-4">
                   <label className="flex items-center gap-2 text-sm">
                     <input
