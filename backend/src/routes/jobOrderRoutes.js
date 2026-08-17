@@ -17,6 +17,7 @@ router.use(protect);
 router.get('/dashboard/summary', getDashboardSummary);
 router.get('/monitoring/overview', getProductionMonitoring);
 router.get('/my-queue', getMyQueue);
+router.get('/by-operation/:operationId', getJobOrdersByOperation);
 router.get('/scan/:jobOrderNo', scanJobOrder);
 router.get('/', getJobOrders);
 router.get('/:id', getJobOrderById);

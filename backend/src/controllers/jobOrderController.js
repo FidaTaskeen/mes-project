@@ -1,3 +1,4 @@
+const User = require('../models/User');
 const JobOrder = require('../models/JobOrder');
 const Item = require('../models/Item');
 const Routing = require('../models/Routing');
@@ -254,4 +255,62 @@ exports.getProductionMonitoring = async (req, res) => {
     console.error('Production monitoring error:', err.message);
     res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
+  // @route  GET /api/joborders/by-operation/:operationId
+// Every job order whose routing includes this operation, with per-operation counts
+exports.getJobOrdersByOperation = async (req, res) => {
+  try {
+    const { operationId } = req.params;
+
+    if (req.user.role === 'operator') {
+      const user = await User.findById(req.user.id).select('assignedOperations');
+      const allowedIds = (user.assignedOperations || []).map((id) => String(id));
+      if (!allowedIds.includes(operationId)) {
+        return res.status(403).json({ message: 'This operation is not assigned to you.' });
+      }
+    }
+
+    const routings = await Routing.find({ 'steps.operation': operationId }).select('_id');
+    const routingIds = routings.map((r) => r._id);
+
+    const jobOrders = await JobOrder.find({ routing: { $in: routingIds } })
+      .populate('item', 'itemCode name description unitOfMeasure')
+      .populate({
+        path: 'routing',
+        populate: { path: 'steps.operation', select: 'operationCode operationName' },
+      })
+      .sort({ createdAt: -1 });
+
+    const results = [];
+    for (const jo of jobOrders) {
+      const steps = jo.routing.steps.slice().sort((a, b) => a.sequenceNo - b.sequenceNo);
+      const idx = steps.findIndex((s) => String(s.operation._id || s.operation) === String(operationId));
+      if (idx === -1) continue;
+
+      const completed = await ScanLog.countDocuments({ jobOrder: jo._id, operation: operationId, status: 'Pass' });
+
+      let prevCompleted = jo.quantity;
+      if (idx > 0) {
+        const prevOpId = steps[idx - 1].operation._id || steps[idx - 1].operation;
+        prevCompleted = await ScanLog.countDocuments({ jobOrder: jo._id, operation: prevOpId, status: 'Pass' });
+      }
+
+      results.push({
+        jobOrderId: jo._id,
+        jobOrderNo: jo.jobOrderNo,
+        item: jo.item,
+        quantity: jo.quantity,
+        completed,
+        pending: Math.max(prevCompleted - completed, 0),
+        balance: Math.max(jo.quantity - completed, 0),
+        status: jo.status,
+        dueDate: jo.dueDate,
+      });
+    }
+
+    res.status(200).json({ jobOrders: results });
+  } catch (err) {
+    console.error('Get job orders by operation error:', err.message);
+    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+  }
+};
 };
