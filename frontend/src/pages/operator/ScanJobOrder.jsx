@@ -24,6 +24,7 @@ export default function ScanJobOrder() {
 
   const [jobOrderNoInput, setJobOrderNoInput] = useState("");
   const [jobOrderId, setJobOrderId] = useState(paramJobOrderId || null);
+  const [currentOperationId, setCurrentOperationId] = useState(null);
 
   const [status, setStatus] = useState(null);
   const [logs, setLogs] = useState([]);
@@ -38,15 +39,17 @@ export default function ScanJobOrder() {
   const [allLogsData, setAllLogsData] = useState([]);
   const [allLogsLoading, setAllLogsLoading] = useState(false);
 
-  const loadJobOrderStatus = async (id) => {
+  const loadJobOrderStatus = async (id, operationId) => {
     setLoading(true);
     setError("");
     try {
+      const opParam = operationId ? `?operation=${operationId}` : "";
       const [statusRes, logsRes] = await Promise.all([
-        axiosInstance.get(`/scanlogs/job-order-status/${id}`),
-        axiosInstance.get(`/scanlogs?jobOrder=${id}`),
+        axiosInstance.get(`/scanlogs/job-order-status/${id}${opParam}`),
+        axiosInstance.get(`/scanlogs?jobOrder=${id}${operationId ? `&operation=${operationId}` : ""}`),
       ]);
       setStatus(statusRes.data);
+      setCurrentOperationId(statusRes.data.currentOperation?._id || operationId);
       setLogs(logsRes.data.logs || []);
       setJobOrderId(id);
     } catch (err) {
@@ -70,8 +73,10 @@ export default function ScanJobOrder() {
   };
 
   useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const operationParam = params.get("operation");
     if (paramJobOrderId) {
-      loadJobOrderStatus(paramJobOrderId);
+      loadJobOrderStatus(paramJobOrderId, operationParam);
     } else if (location.state?.jobOrderNo) {
       handleManualSearch(location.state.jobOrderNo);
     }
