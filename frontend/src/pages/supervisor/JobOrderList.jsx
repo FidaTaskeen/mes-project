@@ -257,14 +257,15 @@ export default function JobOrderList() {
               <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Produced Qty</th>
               <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Due Date</th>
               <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Routing Version</th>
               <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Action</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="8" className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
+              <tr><td colSpan="9" className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
             ) : jobOrders.length === 0 ? (
-              <tr><td colSpan="8" className="px-4 py-6 text-center text-slate-400">No job orders found.</td></tr>
+              <tr><td colSpan="9" className="px-4 py-6 text-center text-slate-400">No job orders found.</td></tr>
             ) : (
               jobOrders.map((jo) => (
                 <tr key={jo._id} className="border-t hover:bg-slate-50 align-top">
@@ -291,6 +292,9 @@ export default function JobOrderList() {
                   <td className="px-4 py-3">{jo.completedQuantity}</td>
                   <td className="px-4 py-3">{new Date(jo.dueDate).toLocaleDateString()}</td>
                   <td className="px-4 py-3">{statusBadge(jo.status)}</td>
+                  <td className="px-4 py-3 text-slate-500">
+                    {jo.routing?.version || "—"}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <button
