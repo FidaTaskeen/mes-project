@@ -15,6 +15,16 @@ const POPULATE_LIST = [
   { path: 'versionHistory.lastScanOperation', select: 'operationCode operationName' },
 ];
 
+const normalizeSteps = (arr) =>
+  (arr || []).map((s) => ({
+    operation: String(s.operation?._id || s.operation || ''),
+    sequenceNo: s.sequenceNo,
+    stage: s.stage,
+    previousOperation: String(s.previousOperation?._id || s.previousOperation || ''),
+    type: s.type,
+    scan: s.scan,
+  }));
+
 exports.createRouting = async (req, res) => {
   try {
     const {
@@ -125,7 +135,8 @@ exports.updateRouting = async (req, res) => {
       }
     }
 
-    const stepsChanged = steps && JSON.stringify(steps) !== JSON.stringify(routing.steps.toObject());
+    const stepsChanged =
+      steps && JSON.stringify(normalizeSteps(steps)) !== JSON.stringify(normalizeSteps(routing.steps.toObject()));
 
     // Before overwriting, snapshot the current (about-to-be-previous) state into
     // versionHistory - but only when the routing lines actually changed, so trivial
