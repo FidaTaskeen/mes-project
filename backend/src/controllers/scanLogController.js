@@ -195,14 +195,19 @@ exports.addScan = async (req, res) => {
 
 exports.getScanLogs = async (req, res) => {
   try {
-    const { jobOrder, operation, status, page = 1, limit = 50 } = req.query;
+    const { jobOrder, operation, status, serialId, page = 1, limit = 50 } = req.query;
     const filter = {};
     if (jobOrder) filter.jobOrder = jobOrder;
     if (operation) filter.operation = operation;
     if (status) filter.status = status;
+    if (serialId) filter.serialId = { $regex: serialId, $options: 'i' };
 
     const logs = await ScanLog.find(filter)
-      .populate('jobOrder', 'jobOrderNo')
+      .populate({
+        path: 'jobOrder',
+        select: 'jobOrderNo item',
+        populate: { path: 'item', select: 'itemCode name' },
+      })
       .populate('operation', 'operationCode operationName')
       .populate('scannedBy', 'name')
       .sort({ createdAt: -1 })
