@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import Layout from "../../components/Layout";
 import axiosInstance from "../../api/axiosInstance";
@@ -21,20 +21,24 @@ const statusStyle = {
 export default function Traceability() {
   const [logs, setLogs] = useState([]);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [serialId, setSerialId] = useState("");
+  const [hasSearched, setHasSearched] = useState(false);
 
   const loadData = async () => {
+    if (!serialId.trim()) {
+      setError("Enter or scan a serial number to search.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ limit: "100" });
-      if (serialId) params.set("serialId", serialId);
-
+      const params = new URLSearchParams({ limit: "100", serialId: serialId.trim() });
       const res = await axiosInstance.get(`/scanlogs?${params.toString()}`);
       setLogs(res.data.logs || []);
       setTotal(res.data.total || 0);
+      setHasSearched(true);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load traceability data");
     } finally {
@@ -42,14 +46,12 @@ export default function Traceability() {
     }
   };
 
-  useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const handleRefresh = () => {
     setSerialId("");
-    loadData();
+    setLogs([]);
+    setTotal(0);
+    setHasSearched(false);
+    setError("");
   };
 
   return (
@@ -87,49 +89,51 @@ export default function Traceability() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
-        <table className="w-full text-sm whitespace-nowrap">
-          <thead className="bg-slate-100 text-left">
-            <tr>
-              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Job Order</th>
-              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Item No.</th>
-              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Operation</th>
-              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Serial ID</th>
-              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
-              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Date &amp; Time</th>
-              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">User</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan="7" className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
-            ) : logs.length === 0 ? (
-              <tr><td colSpan="7" className="px-4 py-6 text-center text-slate-400">No scans found.</td></tr>
-            ) : (
-              logs.map((log) => (
-                <tr key={log._id} className="border-t">
-                  <td className="px-4 py-3 font-medium text-green-700">{log.jobOrder?.jobOrderNo}</td>
-                  <td className="px-4 py-3">{log.jobOrder?.item?.itemCode}</td>
-                  <td className="px-4 py-3">{log.operation?.operationCode} - {log.operation?.operationName}</td>
-                  <td className="px-4 py-3">{log.serialId}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded text-xs ${statusStyle[log.status] || "bg-slate-100 text-slate-500"}`}>
-                      {log.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-500">{new Date(log.createdAt).toLocaleString()}</td>
-                  <td className="px-4 py-3">{log.scannedBy?.name || "—"}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-        {!loading && logs.length > 0 && (
-          <div className="px-4 py-3 border-t text-xs text-slate-400">
-            Items per page: 100 · Showing {logs.length} of {total}
-          </div>
-        )}
-      </div>
+      {hasSearched && (
+        <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
+          <table className="w-full text-sm whitespace-nowrap">
+            <thead className="bg-slate-100 text-left">
+              <tr>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Job Order</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Item No.</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Operation</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Serial ID</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Date &amp; Time</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">User</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan="7" className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
+              ) : logs.length === 0 ? (
+                <tr><td colSpan="7" className="px-4 py-6 text-center text-slate-400">No scans found for this serial.</td></tr>
+              ) : (
+                logs.map((log) => (
+                  <tr key={log._id} className="border-t">
+                    <td className="px-4 py-3 font-medium text-green-700">{log.jobOrder?.jobOrderNo}</td>
+                    <td className="px-4 py-3">{log.jobOrder?.item?.itemCode}</td>
+                    <td className="px-4 py-3">{log.operation?.operationCode} - {log.operation?.operationName}</td>
+                    <td className="px-4 py-3">{log.serialId}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded text-xs ${statusStyle[log.status] || "bg-slate-100 text-slate-500"}`}>
+                        {log.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-500">{new Date(log.createdAt).toLocaleString()}</td>
+                    <td className="px-4 py-3">{log.scannedBy?.name || "—"}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+          {!loading && logs.length > 0 && (
+            <div className="px-4 py-3 border-t text-xs text-slate-400">
+              Items per page: 100 · Showing {logs.length} of {total}
+            </div>
+          )}
+        </div>
+      )}
     </Layout>
   );
 }
