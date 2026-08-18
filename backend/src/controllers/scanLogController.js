@@ -2,6 +2,17 @@ const ScanLog = require('../models/ScanLog');
 const JobOrder = require('../models/JobOrder');
 const User = require('../models/User');
 
+// Walks backward from idx and returns the nearest step whose type is
+// 'Scanning' -- skips No_Scanning steps (like SPI) which never get scans,
+// so "the previous operation" for validation/Pending purposes means the
+// last actual scanning station before this one, not just steps[idx-1].
+const findPrevScanningStep = (steps, idx) => {
+  for (let i = idx - 1; i >= 0; i--) {
+    if (steps[i].type === 'Scanning') return steps[i];
+  }
+  return null;
+};
+
 exports.getJobOrderStatus = async (req, res) => {
   try {
     const { operation: operationId } = req.query;
@@ -39,8 +50,9 @@ exports.getJobOrderStatus = async (req, res) => {
     });
 
     let prevCompleted = jobOrder.quantity;
-    if (stepIndex > 0) {
-      const prevOpId = steps[stepIndex - 1].operation._id || steps[stepIndex - 1].operation;
+    const prevScanningStep = findPrevScanningStep(steps, stepIndex);
+    if (prevScanningStep) {
+      const prevOpId = prevScanningStep.operation._id || prevScanningStep.operation;
       prevCompleted = await ScanLog.countDocuments({ jobOrder: jobOrder._id, operation: prevOpId, status: 'Pass' });
     }
 
@@ -100,6 +112,10 @@ exports.addScan = async (req, res) => {
     }
     const currentStep = steps[stepIndex];
 
+    if (currentStep.type !== 'Scanning') {
+      return res.status(400).json({ message: 'This operation does not require scanning.' });
+    }
+
     if (req.user.role === 'operator') {
       const user = await User.findById(req.user.id).select('assignedOperations');
       const allowedIds = (user.assignedOperations || []).map((id) => String(id));
@@ -114,10 +130,12 @@ exports.addScan = async (req, res) => {
       });
     }
 
-    // Sequence enforcement: serial must have Passed the immediately preceding routing step
-    if (stepIndex > 0) {
-      const prevStep = steps[stepIndex - 1];
-      const prevOpId = prevStep.operation._id || prevStep.operation;
+    // Sequence enforcement: serial must have Passed the nearest PREVIOUS
+    // SCANNING step (No_Scanning steps like SPI are skipped, since they
+    // never produce a ScanLog to check against).
+    const prevScanningStep = findPrevScanningStep(steps, stepIndex);
+    if (prevScanningStep) {
+      const prevOpId = prevScanningStep.operation._id || prevScanningStep.operation;
       const priorPass = await ScanLog.findOne({
         jobOrder: jobOrderId,
         serialId,
@@ -126,7 +144,7 @@ exports.addScan = async (req, res) => {
       });
       if (!priorPass) {
         return res.status(400).json({
-          message: `Serial ID not scanned in the previous operation - ${prevStep.operation.operationName}`,
+          message: `Serial ID not scanned in the previous operation - ${prevScanningStep.operation.operationName}`,
         });
       }
     }

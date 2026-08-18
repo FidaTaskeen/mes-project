@@ -39,6 +39,8 @@ export default function ScanJobOrder() {
   const [showAllLogs, setShowAllLogs] = useState(false);
   const [allLogsData, setAllLogsData] = useState([]);
   const [allLogsLoading, setAllLogsLoading] = useState(false);
+  const [allLogsPage, setAllLogsPage] = useState(1);
+  const [allLogsTotal, setAllLogsTotal] = useState(0);
 
   const loadJobOrderStatus = async (id) => {
     setLoading(true);
@@ -60,13 +62,15 @@ export default function ScanJobOrder() {
     }
   };
 
-  const loadAllLogs = async () => {
+  const loadAllLogs = async (page = 1) => {
     setAllLogsLoading(true);
     try {
       const res = await axiosInstance.get(
-        `/scanlogs?jobOrder=${jobOrderId}${operationId ? `&operation=${operationId}` : ""}&limit=1000`
+        `/scanlogs?jobOrder=${jobOrderId}${operationId ? `&operation=${operationId}` : ""}&page=${page}&limit=100`
       );
       setAllLogsData(res.data.logs || []);
+      setAllLogsTotal(res.data.total || 0);
+      setAllLogsPage(page);
     } catch (err) {
       setAllLogsData([]);
     } finally {
@@ -88,7 +92,7 @@ export default function ScanJobOrder() {
   }, [jobOrderId]);
 
   useEffect(() => {
-    if (showAllLogs) loadAllLogs();
+    if (showAllLogs) loadAllLogs(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showAllLogs]);
 
@@ -135,6 +139,8 @@ export default function ScanJobOrder() {
     }
   };
 
+  const totalPages = Math.max(Math.ceil(allLogsTotal / 100), 1);
+
   return (
     <Layout portalName="Operator Portal" theme="purple" navGroups={navGroups}>
       {jobOrderId && (
@@ -172,7 +178,6 @@ export default function ScanJobOrder() {
 
       {status && (
         <>
-          {/* Header info */}
           <div className="bg-white rounded-xl shadow-sm border p-5 mb-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -220,7 +225,6 @@ export default function ScanJobOrder() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* Scan input */}
             <div className="bg-white rounded-xl shadow-sm border p-5">
               <h2 className="font-medium mb-3">Scan Serial ID</h2>
               {scanError && (
@@ -278,7 +282,6 @@ export default function ScanJobOrder() {
               </form>
             </div>
 
-            {/* Scan log */}
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
               <div className="px-5 py-3 border-b font-medium text-sm flex justify-between items-center">
                 <span>Scan Log</span>
@@ -375,6 +378,27 @@ export default function ScanJobOrder() {
                 )}
               </tbody>
             </table>
+            <div className="flex justify-between items-center mt-4 text-sm">
+              <span className="text-slate-500">
+                Page {allLogsPage} of {totalPages} ({allLogsTotal} total)
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => loadAllLogs(allLogsPage - 1)}
+                  disabled={allLogsPage <= 1}
+                  className="px-3 py-1 border rounded disabled:opacity-40"
+                >
+                  Prev
+                </button>
+                <button
+                  onClick={() => loadAllLogs(allLogsPage + 1)}
+                  disabled={allLogsPage >= totalPages}
+                  className="px-3 py-1 border rounded disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

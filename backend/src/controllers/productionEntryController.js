@@ -3,6 +3,17 @@ const JobOrder = require('../models/JobOrder');
 const User = require('../models/User');
 const ScanLog = require('../models/ScanLog');
 
+// Walks backward from idx and returns the nearest step whose type is
+// 'Scanning' -- No_Scanning steps (like SPI, AOI-inspection-only, etc.)
+// never get ScanLog entries, so they must be skipped when finding what
+// "the previous operation" means for sequence validation and Pending counts.
+const findPrevScanningStep = (steps, idx) => {
+  for (let i = idx - 1; i >= 0; i--) {
+    if (steps[i].type === 'Scanning') return steps[i];
+  }
+  return null;
+};
+
 exports.scanJobOrder = async (req, res) => {
   try {
     const jobOrder = await JobOrder.findOne({
@@ -250,7 +261,6 @@ exports.getTodaySummary = async (req, res) => {
 };
 
 // Legacy queue - kept for anything still referencing it (Dashboard's "Active Orders" count etc.)
-// Only shows job orders currently AT one of the operator's assigned operations.
 exports.getMyQueue = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('assignedOperations');
@@ -299,13 +309,9 @@ exports.getMyQueue = async (req, res) => {
   }
 };
 
-// NEW: returns EVERY job order whose routing includes the given operation,
-// regardless of whether the job order is currently sitting there right now.
-// Computes per-operation Produced / Pending / Balance:
-//   Produced = Pass scans logged AT THIS operation
-//   Pending  = Pass scans logged at the PREVIOUS operation, minus Produced here
-//              (for the first operation in the routing, Pending = quantity - Produced)
-//   Balance  = job order quantity - Produced here
+// Returns EVERY job order whose routing includes the given operation.
+// Pending is computed against the nearest PREVIOUS SCANNING step (skipping
+// any No_Scanning steps like SPI in between), since those never get scans.
 exports.getOperationQueue = async (req, res) => {
   try {
     const { operationId } = req.params;
@@ -335,7 +341,7 @@ exports.getOperationQueue = async (req, res) => {
       const idx = steps.findIndex(
         (s) => String(s.operation?._id || s.operation) === String(operationId)
       );
-      if (idx === -1) continue; // this routing doesn't include the operation at all
+      if (idx === -1) continue;
 
       const thisOp = steps[idx].operation;
 
@@ -346,10 +352,12 @@ exports.getOperationQueue = async (req, res) => {
       });
 
       let pending;
-      if (idx === 0) {
+      const prevScanningStep = findPrevScanningStep(steps, idx);
+      if (!prevScanningStep) {
+        // no scanning step before this one -> everything ordered is "available"
         pending = jo.quantity - producedHere;
       } else {
-        const prevOp = steps[idx - 1].operation;
+        const prevOp = prevScanningStep.operation;
         const producedPrev = await ScanLog.countDocuments({
           jobOrder: jo._id,
           operation: prevOp._id,
@@ -377,6 +385,7 @@ exports.getOperationQueue = async (req, res) => {
         stationStatus,
         jobOrderStatus: jo.status,
         operation: thisOp,
+        scanType: steps[idx].type,
         dueDate: jo.dueDate,
       });
     }

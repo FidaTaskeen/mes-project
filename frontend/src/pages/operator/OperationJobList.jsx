@@ -143,12 +143,16 @@ export default function OperationJobList() {
                   <td className="px-4 py-3">{stationBadge(q.stationStatus)}</td>
                   <td className="px-4 py-3">{new Date(q.dueDate).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => navigate(`/operator/scan/${q.jobOrderId}?operation=${operationId}`)}
-                      className="text-purple-600 hover:underline"
-                    >
-                      Scan &gt;
-                    </button>
+                    {q.scanType === "No_Scanning" ? (
+                      <span className="text-slate-300 cursor-not-allowed">Scan &gt;</span>
+                    ) : (
+                      <button
+                        onClick={() => navigate(`/operator/scan/${q.jobOrderId}?operation=${operationId}`)}
+                        className="text-purple-600 hover:underline"
+                      >
+                        Scan &gt;
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))
