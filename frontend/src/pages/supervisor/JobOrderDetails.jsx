@@ -25,6 +25,7 @@ export default function JobOrderDetails() {
   const [scanLogs, setScanLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [statusUpdating, setStatusUpdating] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -48,6 +49,19 @@ export default function JobOrderDetails() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const handleStatusChange = async (newStatus) => {
+    setStatusUpdating(true);
+    setError("");
+    try {
+      await axiosInstance.put(`/joborders/${jobOrder._id}`, { status: newStatus });
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update status");
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
   if (loading) {
     return (
       <Layout portalName="Supervisor Portal" theme="green" navGroups={navGroups}>
@@ -67,9 +81,6 @@ export default function JobOrderDetails() {
   const routing = jobOrder.routing || {};
   const allSteps = [...(routing.steps || [])].sort((a, b) => a.sequenceNo - b.sequenceNo);
 
-  // Only show the operations between First Scan Operation and Last Scan Operation (inclusive),
-  // based on their position (sequenceNo) in the routing. Falls back to the full routing if
-  // either marker can't be matched to an actual routing line.
   const firstOpId = routing.firstScanOperation?._id || routing.firstScanOperation;
   const lastOpId = routing.lastScanOperation?._id || routing.lastScanOperation;
 
@@ -136,7 +147,6 @@ export default function JobOrderDetails() {
       {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main: progress bar + stations table */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white rounded-xl border p-5">
             <div className="flex items-center justify-between mb-4">
@@ -204,7 +214,6 @@ export default function JobOrderDetails() {
           </div>
         </div>
 
-        {/* Right: completion + counts + job order info */}
         <div className="space-y-4">
           <div className="bg-white rounded-xl border p-5">
             <div className="grid grid-cols-3 items-center gap-3">
@@ -235,17 +244,26 @@ export default function JobOrderDetails() {
                   {jobOrder.item?.itemCode} — {jobOrder.item?.name}
                 </div>
               </div>
-              <span
-                className={`px-2 py-1 rounded text-xs ${
+              <select
+                value={jobOrder.status}
+                disabled={statusUpdating}
+                onChange={(e) => handleStatusChange(e.target.value)}
+                className={`px-2 py-1 rounded text-xs border-none font-medium ${
                   jobOrder.status === "Completed"
                     ? "bg-green-100 text-green-700"
                     : jobOrder.status === "In Progress"
                     ? "bg-blue-100 text-blue-700"
+                    : jobOrder.status === "On Hold"
+                    ? "bg-amber-100 text-amber-700"
                     : "bg-slate-200 text-slate-500"
                 }`}
               >
-                {jobOrder.status}
-              </span>
+                <option value="Planned">Planned</option>
+                <option value="Released">Released</option>
+                <option value="On Hold">On Hold</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Completed">Completed</option>
+              </select>
             </div>
 
             <div className="space-y-3 text-sm">
@@ -278,10 +296,6 @@ export default function JobOrderDetails() {
                 <div className="font-medium">{stationRows[0]?.stationCode ? stationRows.find(s => s.status !== "Completed")?.stationCode || "Complete" : "—"}</div>
               </div>
               <div>
-                <div className="text-xs text-slate-400">Routing Version</div>
-                <div className="font-medium">{routing.routingCode} — {routing.version || "—"}</div>
-              </div>
-              <div>
                 <div className="text-xs text-slate-400">Quantity / Produced</div>
                 <div className="font-medium">{jobOrder.quantity} / {jobOrder.completedQuantity}</div>
               </div>
@@ -296,7 +310,7 @@ export default function JobOrderDetails() {
               <div>
                 <div className="text-xs text-slate-400">Routing / Version</div>
                 <div className="font-medium">
-                  {routing.routingCode || "—"} ({routing.version || "—"})
+                  {routing.routingCode || "—"} ({jobOrder.routingVersion || routing.version || "—"})
                 </div>
               </div>
               <div>
