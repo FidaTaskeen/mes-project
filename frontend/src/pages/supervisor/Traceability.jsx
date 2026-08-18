@@ -34,7 +34,7 @@ export default function Traceability() {
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ limit: "100", serialId: serialId.trim() });
+      const params = new URLSearchParams({ limit: "100", serialId: serialId.trim(), sort: "asc" });
       const res = await axiosInstance.get(`/scanlogs?${params.toString()}`);
       setLogs(res.data.logs || []);
       setTotal(res.data.total || 0);
