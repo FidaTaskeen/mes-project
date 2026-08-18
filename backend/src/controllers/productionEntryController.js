@@ -1,6 +1,7 @@
 const ProductionEntry = require('../models/ProductionEntry');
 const JobOrder = require('../models/JobOrder');
 const User = require('../models/User');
+const ScanLog = require('../models/ScanLog');
 
 exports.scanJobOrder = async (req, res) => {
   try {
@@ -248,6 +249,8 @@ exports.getTodaySummary = async (req, res) => {
   }
 };
 
+// Legacy queue - kept for anything still referencing it (Dashboard's "Active Orders" count etc.)
+// Only shows job orders currently AT one of the operator's assigned operations.
 exports.getMyQueue = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('assignedOperations');
@@ -292,6 +295,95 @@ exports.getMyQueue = async (req, res) => {
     res.status(200).json({ queue });
   } catch (err) {
     console.error('My queue error:', err.message);
+    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+  }
+};
+
+// NEW: returns EVERY job order whose routing includes the given operation,
+// regardless of whether the job order is currently sitting there right now.
+// Computes per-operation Produced / Pending / Balance:
+//   Produced = Pass scans logged AT THIS operation
+//   Pending  = Pass scans logged at the PREVIOUS operation, minus Produced here
+//              (for the first operation in the routing, Pending = quantity - Produced)
+//   Balance  = job order quantity - Produced here
+exports.getOperationQueue = async (req, res) => {
+  try {
+    const { operationId } = req.params;
+
+    if (req.user.role === 'operator') {
+      const user = await User.findById(req.user.id).select('assignedOperations');
+      const allowedIds = (user.assignedOperations || []).map((id) => String(id));
+      if (!allowedIds.includes(String(operationId))) {
+        return res.status(403).json({ message: 'This operation is not assigned to you.' });
+      }
+    }
+
+    const jobOrders = await JobOrder.find({})
+      .populate('item', 'itemCode name description')
+      .populate({
+        path: 'routing',
+        populate: { path: 'steps.operation', select: 'operationCode operationName workCenter' },
+      })
+      .sort({ createdAt: -1 });
+
+    const results = [];
+
+    for (const jo of jobOrders) {
+      if (!jo.routing || !jo.routing.steps || jo.routing.steps.length === 0) continue;
+
+      const steps = jo.routing.steps;
+      const idx = steps.findIndex(
+        (s) => String(s.operation?._id || s.operation) === String(operationId)
+      );
+      if (idx === -1) continue; // this routing doesn't include the operation at all
+
+      const thisOp = steps[idx].operation;
+
+      const producedHere = await ScanLog.countDocuments({
+        jobOrder: jo._id,
+        operation: thisOp._id,
+        status: 'Pass',
+      });
+
+      let pending;
+      if (idx === 0) {
+        pending = jo.quantity - producedHere;
+      } else {
+        const prevOp = steps[idx - 1].operation;
+        const producedPrev = await ScanLog.countDocuments({
+          jobOrder: jo._id,
+          operation: prevOp._id,
+          status: 'Pass',
+        });
+        pending = producedPrev - producedHere;
+      }
+      if (pending < 0) pending = 0;
+
+      let balance = jo.quantity - producedHere;
+      if (balance < 0) balance = 0;
+
+      let stationStatus = 'Open';
+      if (producedHere >= jo.quantity) stationStatus = 'Completed';
+      else if (producedHere > 0) stationStatus = 'InProgress';
+
+      results.push({
+        jobOrderId: jo._id,
+        jobOrderNo: jo.jobOrderNo,
+        item: jo.item,
+        quantity: jo.quantity,
+        producedQuantity: producedHere,
+        pendingQuantity: pending,
+        balanceQuantity: balance,
+        stationStatus,
+        jobOrderStatus: jo.status,
+        operation: thisOp,
+        dueDate: jo.dueDate,
+      });
+    }
+
+    res.status(200).json({ queue: results });
+  } catch (err) {
+    console.error('Operation queue error:', err.message);
     res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
 };

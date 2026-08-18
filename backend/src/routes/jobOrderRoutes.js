@@ -9,7 +9,7 @@ const {
   getDashboardSummary,
   getProductionMonitoring,
 } = require('../controllers/jobOrderController');
-const { scanJobOrder, getMyQueue } = require('../controllers/productionEntryController');
+const { scanJobOrder, getMyQueue, getOperationQueue } = require('../controllers/productionEntryController');
 const { protect, authorize } = require('../middleware/auth');
 
 router.use(protect);
@@ -17,6 +17,7 @@ router.use(protect);
 router.get('/dashboard/summary', getDashboardSummary);
 router.get('/monitoring/overview', getProductionMonitoring);
 router.get('/my-queue', getMyQueue);
+router.get('/operation-queue/:operationId', getOperationQueue);
 router.get('/by-operation/:operationId', getJobOrdersByOperation);
 router.get('/scan/:jobOrderNo', scanJobOrder);
 router.get('/', getJobOrders);
