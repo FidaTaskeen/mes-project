@@ -17,16 +17,10 @@ const navGroups = [
   },
 ];
 
-const stationStatusStyle = {
-  Completed: "bg-green-100 text-green-700",
-  InProgress: "bg-blue-100 text-blue-700",
-  Open: "bg-slate-200 text-slate-500",
-};
-
 export default function OperationJobList() {
   const { operationId } = useParams();
   const navigate = useNavigate();
-  const [queue, setQueue] = useState([]);
+  const [allQueue, setAllQueue] = useState([]);
   const [operationName, setOperationName] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
@@ -38,10 +32,10 @@ export default function OperationJobList() {
     setError("");
     try {
       const res = await axiosInstance.get(`/joborders/operation-queue/${operationId}`);
-      const data = res.data.queue || [];
-      setQueue(data);
-      if (data.length > 0) {
-        setOperationName(`${data[0].operation.operationCode} - ${data[0].operation.operationName}`);
+      const queue = res.data.queue || [];
+      setAllQueue(queue);
+      if (queue.length > 0) {
+        setOperationName(queue[0].operation?.operationName || "");
       }
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load job orders");
@@ -55,7 +49,7 @@ export default function OperationJobList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [operationId]);
 
-  const filtered = queue.filter((q) => {
+  const filtered = allQueue.filter((q) => {
     const matchesSearch =
       !search ||
       q.jobOrderNo.toLowerCase().includes(search.toLowerCase()) ||
@@ -63,6 +57,19 @@ export default function OperationJobList() {
     const matchesStatus = !status || q.jobOrderStatus === status;
     return matchesSearch && matchesStatus;
   });
+
+  const stationBadge = (stationStatus) => {
+    const styles = {
+      Completed: "bg-green-100 text-green-700",
+      InProgress: "bg-blue-100 text-blue-700",
+      Open: "bg-slate-200 text-slate-500",
+    };
+    return (
+      <span className={`px-2 py-0.5 rounded text-xs ${styles[stationStatus] || "bg-slate-200 text-slate-500"}`}>
+        {stationStatus}
+      </span>
+    );
+  };
 
   return (
     <Layout portalName="Operator Portal" theme="purple" navGroups={navGroups}>
@@ -114,33 +121,27 @@ export default function OperationJobList() {
               <th className="px-4 py-3">Produced</th>
               <th className="px-4 py-3">Pending</th>
               <th className="px-4 py-3">Balance</th>
-              <th className="px-4 py-3">Due Date</th>
-              <th className="px-4 py-3">JO Status</th>
               <th className="px-4 py-3">Station Status</th>
+              <th className="px-4 py-3">Due Date</th>
               <th className="px-4 py-3">Action</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="10" className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
+              <tr><td colSpan="9" className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan="10" className="px-4 py-6 text-center text-slate-400">No job orders found for this operation.</td></tr>
+              <tr><td colSpan="9" className="px-4 py-6 text-center text-slate-400">No job orders found for this operation.</td></tr>
             ) : (
               filtered.map((q) => (
                 <tr key={q.jobOrderId} className="border-t hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium text-purple-700">{q.jobOrderNo}</td>
                   <td className="px-4 py-3">{q.item?.itemCode} - {q.item?.name}</td>
                   <td className="px-4 py-3">{q.quantity}</td>
-                  <td className="px-4 py-3">{q.producedQuantity}</td>
-                  <td className="px-4 py-3">{q.pendingQuantity}</td>
-                  <td className="px-4 py-3">{q.balanceQuantity}</td>
+                  <td className="px-4 py-3 text-green-600">{q.producedQuantity}</td>
+                  <td className="px-4 py-3 text-amber-600">{q.pendingQuantity}</td>
+                  <td className="px-4 py-3 text-blue-600">{q.balanceQuantity}</td>
+                  <td className="px-4 py-3">{stationBadge(q.stationStatus)}</td>
                   <td className="px-4 py-3">{new Date(q.dueDate).toLocaleDateString()}</td>
-                  <td className="px-4 py-3">{q.jobOrderStatus}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded text-xs ${stationStatusStyle[q.stationStatus]}`}>
-                      {q.stationStatus}
-                    </span>
-                  </td>
                   <td className="px-4 py-3">
                     <button
                       onClick={() => navigate(`/operator/scan/${q.jobOrderId}?operation=${operationId}`)}

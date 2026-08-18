@@ -22,6 +22,8 @@ export default function ScanJobOrder() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const operationId = new URLSearchParams(location.search).get("operation");
+
   const [jobOrderNoInput, setJobOrderNoInput] = useState("");
   const [jobOrderId, setJobOrderId] = useState(paramJobOrderId || null);
 
@@ -42,9 +44,10 @@ export default function ScanJobOrder() {
     setLoading(true);
     setError("");
     try {
+      const opQuery = operationId ? `?operation=${operationId}` : "";
       const [statusRes, logsRes] = await Promise.all([
-        axiosInstance.get(`/scanlogs/job-order-status/${id}`),
-        axiosInstance.get(`/scanlogs?jobOrder=${id}`),
+        axiosInstance.get(`/scanlogs/job-order-status/${id}${opQuery}`),
+        axiosInstance.get(`/scanlogs?jobOrder=${id}${operationId ? `&operation=${operationId}` : ""}`),
       ]);
       setStatus(statusRes.data);
       setLogs(logsRes.data.logs || []);
@@ -60,7 +63,9 @@ export default function ScanJobOrder() {
   const loadAllLogs = async () => {
     setAllLogsLoading(true);
     try {
-      const res = await axiosInstance.get(`/scanlogs?jobOrder=${jobOrderId}&limit=1000`);
+      const res = await axiosInstance.get(
+        `/scanlogs?jobOrder=${jobOrderId}${operationId ? `&operation=${operationId}` : ""}&limit=1000`
+      );
       setAllLogsData(res.data.logs || []);
     } catch (err) {
       setAllLogsData([]);
@@ -76,7 +81,7 @@ export default function ScanJobOrder() {
       handleManualSearch(location.state.jobOrderNo);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paramJobOrderId]);
+  }, [paramJobOrderId, operationId]);
 
   useEffect(() => {
     if (inputRef.current) inputRef.current.focus();
@@ -106,10 +111,20 @@ export default function ScanJobOrder() {
   const handleScanSubmit = async (e) => {
     e.preventDefault();
     if (!serialId.trim()) return;
+    if (!operationId) {
+      setScanError("No operation selected. Go back to the dashboard and open this job order from an operation tile.");
+      return;
+    }
+    const expectedLength = status?.jobOrder?.item?.serialNoLength;
+    if (expectedLength && serialId.trim().length !== expectedLength) {
+      setScanError(`Serial ID must be exactly ${expectedLength} characters (got ${serialId.trim().length}).`);
+      return;
+    }
     setScanError("");
     try {
       await axiosInstance.post("/scanlogs", {
         jobOrder: jobOrderId,
+        operation: operationId,
         serialId: serialId.trim(),
         status: scanStatus,
       });
@@ -212,7 +227,7 @@ export default function ScanJobOrder() {
                 <div className="bg-red-50 text-red-600 text-sm p-2 rounded mb-3">{scanError}</div>
               )}
               <form onSubmit={handleScanSubmit}>
-                <div className="relative mb-4">
+                <div className="relative mb-1">
                   <ScanLine size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     ref={inputRef}
@@ -223,6 +238,19 @@ export default function ScanJobOrder() {
                     autoFocus
                   />
                 </div>
+                {status?.jobOrder?.item?.serialNoLength && (
+                  <p
+                    className={`text-xs mb-3 ${
+                      serialId && serialId.trim().length !== status.jobOrder.item.serialNoLength
+                        ? "text-red-500"
+                        : "text-slate-400"
+                    }`}
+                  >
+                    Expected length: {status.jobOrder.item.serialNoLength} characters
+                    {serialId && ` (currently ${serialId.trim().length})`}
+                  </p>
+                )}
+                {!status?.jobOrder?.item?.serialNoLength && <div className="mb-3" />}
                 <div className="flex gap-4 mb-4">
                   <label className="flex items-center gap-2 text-sm">
                     <input
