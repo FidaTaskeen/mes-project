@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import Layout from "../../components/Layout";
 import axiosInstance from "../../api/axiosInstance";
 
 const navGroups = [
   {
     items: [
+      { label: "Dashboard", path: "/supervisor/dashboard" },
       { label: "Job Order", path: "/supervisor/job-order-list" },
       { label: "Traceability", path: "/supervisor/traceability" },
     ],
@@ -52,7 +54,11 @@ export default function Traceability() {
 
   return (
     <Layout portalName="Supervisor Portal" theme="green" navGroups={navGroups}>
-      <div className="text-sm text-slate-500 mb-1">Dashboard &gt; Traceability &gt; Process Traceability</div>
+      <Link to="/supervisor/dashboard" className="text-sm text-green-700 hover:underline">
+        ← Back to Dashboard
+      </Link>
+
+      <div className="text-sm text-slate-500 mt-3 mb-1">Dashboard &gt; Traceability &gt; Process Traceability</div>
       <h1 className="text-2xl font-bold mb-5">Process Traceability</h1>
 
       {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>}
