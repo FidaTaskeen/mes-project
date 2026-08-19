@@ -6,9 +6,13 @@ import axiosInstance from "../../api/axiosInstance";
 const navGroups = [
   {
     items: [
-      { label: "Dashboard", path: "/supervisor/dashboard" },
-      { label: "Job Order", path: "/supervisor/job-order-list" },
-      { label: "Traceability", path: "/supervisor/traceability" },
+      { label: "Operator Dashboard", path: "/operator/dashboard" },
+      { label: "Scan Job Order", path: "/operator/scan" },
+      { label: "My Operations", path: "/operator/my-operations" },
+      { label: "Production Entry", path: "/operator/production-entry" },
+      { label: "Production History", path: "/operator/history" },
+      { label: "My Performance", path: "/operator/performance" },
+      { label: "Traceability", path: "/operator/traceability" },
     ],
   },
 ];
@@ -19,7 +23,7 @@ const statusStyle = {
   "-": "bg-slate-100 text-slate-400",
 };
 
-export default function Traceability() {
+export default function OperatorTraceability() {
   const [serialId, setSerialId] = useState("");
   const [jobOrder, setJobOrder] = useState(null);
   const [trace, setTrace] = useState([]);
@@ -58,15 +62,12 @@ export default function Traceability() {
   };
 
   return (
-    <Layout portalName="Supervisor Portal" theme="green" navGroups={navGroups}>
-      <Link to="/supervisor/dashboard" className="text-sm text-green-700 hover:underline">
+    <Layout portalName="Operator Portal" theme="purple" navGroups={navGroups}>
+      <Link to="/operator/dashboard" className="text-sm text-purple-700 hover:underline">
         ← Back to Dashboard
       </Link>
 
-      <div className="mt-4 mb-1 text-sm text-slate-500">
-        Dashboard &gt; Traceability &gt; Process Traceability
-      </div>
-      <h1 className="text-2xl font-bold mb-5">Process Traceability</h1>
+      <h1 className="text-2xl font-bold mb-5 mt-4">Traceability</h1>
 
       <div className="bg-white rounded-xl shadow-sm border p-4 mb-4">
         <label className="block text-xs font-medium text-slate-500 mb-1">Scan Serial</label>
@@ -80,7 +81,7 @@ export default function Traceability() {
         <div className="flex gap-2">
           <button
             onClick={handleSearch}
-            className="bg-green-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium"
+            className="bg-purple-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium"
           >
             Search
           </button>

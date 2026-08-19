@@ -130,9 +130,6 @@ exports.addScan = async (req, res) => {
       });
     }
 
-    // Sequence enforcement: serial must have Passed the nearest PREVIOUS
-    // SCANNING step (No_Scanning steps like SPI are skipped, since they
-    // never produce a ScanLog to check against).
     const prevScanningStep = findPrevScanningStep(steps, stepIndex);
     if (prevScanningStep) {
       const prevOpId = prevScanningStep.operation._id || prevScanningStep.operation;
@@ -221,6 +218,64 @@ exports.getScanLogs = async (req, res) => {
     res.status(200).json({ logs, total });
   } catch (err) {
     console.error('Get scan logs error:', err.message);
+    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+  }
+};
+
+// Full-routing traceability for a single serial number:
+// finds which job order this serial belongs to, then walks EVERY step
+// in that routing (not just steps that were actually scanned), marking
+// each one Pass / Fail / '-' (not yet scanned).
+exports.getSerialTrace = async (req, res) => {
+  try {
+    const { serialId } = req.params;
+    if (!serialId) return res.status(400).json({ message: 'Serial ID is required' });
+
+    const anyLog = await ScanLog.findOne({ serialId }).sort({ createdAt: 1 });
+    if (!anyLog) {
+      return res.status(404).json({ message: 'No scans found for this serial number.' });
+    }
+
+    const jobOrder = await JobOrder.findById(anyLog.jobOrder)
+      .populate('item', 'itemCode name')
+      .populate({
+        path: 'routing',
+        populate: { path: 'steps.operation', select: 'operationCode operationName' },
+      });
+    if (!jobOrder) return res.status(404).json({ message: 'Job order not found for this serial.' });
+
+    const steps = jobOrder.routing.steps.slice().sort((a, b) => a.sequenceNo - b.sequenceNo);
+
+    const logsForSerial = await ScanLog.find({ jobOrder: jobOrder._id, serialId })
+      .populate('scannedBy', 'name')
+      .populate('operation', '_id');
+
+    const trace = steps.map((step) => {
+      const opId = String(step.operation._id || step.operation);
+      const matchingLog = logsForSerial.find((l) => String(l.operation._id || l.operation) === opId);
+
+      return {
+        sequenceNo: step.sequenceNo,
+        operationCode: step.operation.operationCode,
+        operationName: step.operation.operationName,
+        scanType: step.type,
+        status: matchingLog ? matchingLog.status : '-',
+        dateTime: matchingLog ? matchingLog.createdAt : null,
+        user: matchingLog?.scannedBy?.name || null,
+      };
+    });
+
+    res.status(200).json({
+      jobOrder: {
+        _id: jobOrder._id,
+        jobOrderNo: jobOrder.jobOrderNo,
+        item: jobOrder.item,
+      },
+      serialId,
+      trace,
+    });
+  } catch (err) {
+    console.error('Serial trace error:', err.message);
     res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
 };

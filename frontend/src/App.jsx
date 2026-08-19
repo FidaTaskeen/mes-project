@@ -30,6 +30,7 @@ import Traceability from "./pages/supervisor/Traceability";
 import Routing from "./pages/admin/Routing";
 import RoutingForm from "./pages/admin/RoutingForm";
 import RoutingView from "./pages/admin/RoutingView";
+import OperatorTraceability from "./pages/operator/Traceability";
 
 export default function App() {
   return (
@@ -244,6 +245,11 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          // ...
+          <Route 
+           path="/operator/traceability" 
+           element={<OperatorTraceability />} />
+
           <Route
             path="/operator/my-operations"
             element={
