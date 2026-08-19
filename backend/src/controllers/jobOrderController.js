@@ -10,6 +10,19 @@ const generateJobOrderNo = async () => {
   return `JO-${year}-${String(count + 1).padStart(4, '0')}`;
 };
 
+// Self-heals stale "In Progress" status: if nothing has actually been
+// scanned against this job order yet, it isn't really in progress.
+const healStatus = async (jo) => {
+  if (jo.status === 'In Progress') {
+    const hasAnyScan = await ScanLog.exists({ jobOrder: jo._id });
+    if (!hasAnyScan) {
+      jo.status = 'Released';
+      await jo.save();
+    }
+  }
+  return jo;
+};
+
 exports.createJobOrder = async (req, res) => {
   try {
     const { jobOrderNo, item, routing, quantity, startDate, dueDate, remarks, status } = req.body;
@@ -101,6 +114,8 @@ exports.getJobOrders = async (req, res) => {
       .skip((page - 1) * limit)
       .limit(Number(limit));
 
+    await Promise.all(jobOrders.map(healStatus));
+
     const total = await JobOrder.countDocuments(filter);
 
     res.status(200).json({
@@ -132,6 +147,7 @@ exports.getJobOrderById = async (req, res) => {
     if (!jobOrder) {
       return res.status(404).json({ message: 'Job order not found' });
     }
+    await healStatus(jobOrder);
     res.status(200).json({ jobOrder });
   } catch (err) {
     console.error('Get job order error:', err.message);
@@ -284,6 +300,8 @@ exports.getJobOrdersByOperation = async (req, res) => {
 
     const results = [];
     for (const jo of jobOrders) {
+      await healStatus(jo);
+
       const steps = jo.routing.steps.slice().sort((a, b) => a.sequenceNo - b.sequenceNo);
       const idx = steps.findIndex((s) => String(s.operation._id || s.operation) === String(operationId));
       if (idx === -1) continue;
