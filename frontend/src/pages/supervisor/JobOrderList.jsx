@@ -297,13 +297,13 @@ export default function JobOrderList() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => openEditForm(jo)}
+                      <Link
+                        to={`/supervisor/job-order-details/${jo._id}`}
                         className="w-7 h-7 rounded bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-blue-50 hover:text-blue-600"
-                        title="Edit"
+                        title="View Process"
                       >
                         <Pencil size={14} />
-                      </button>
+                      </Link>
                       <button
                         onClick={() => setStatus(jo, jo.status === "On Hold" ? "Released" : "On Hold")}
                         disabled={jo.status === "Completed"}

@@ -97,7 +97,7 @@ exports.getJobOrders = async (req, res) => {
     const jobOrders = await JobOrder.find(filter)
       .populate('item', 'itemCode name description unitOfMeasure')
       .populate('routing', 'routingCode version')
-      .sort({ createdAt: -1 })
+      .sort({ jobOrderNo: 1 })
       .skip((page - 1) * limit)
       .limit(Number(limit));
 
@@ -255,7 +255,9 @@ exports.getProductionMonitoring = async (req, res) => {
     console.error('Production monitoring error:', err.message);
     res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
-  // @route  GET /api/joborders/by-operation/:operationId
+};
+
+// @route  GET /api/joborders/by-operation/:operationId
 // Every job order whose routing includes this operation, with per-operation counts
 exports.getJobOrdersByOperation = async (req, res) => {
   try {
@@ -278,7 +280,7 @@ exports.getJobOrdersByOperation = async (req, res) => {
         path: 'routing',
         populate: { path: 'steps.operation', select: 'operationCode operationName' },
       })
-      .sort({ createdAt: -1 });
+      .sort({ jobOrderNo: 1 });
 
     const results = [];
     for (const jo of jobOrders) {
@@ -312,5 +314,4 @@ exports.getJobOrdersByOperation = async (req, res) => {
     console.error('Get job orders by operation error:', err.message);
     res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
-};
 };

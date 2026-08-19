@@ -25,7 +25,6 @@ export default function JobOrderDetails() {
   const [scanLogs, setScanLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [statusUpdating, setStatusUpdating] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -48,19 +47,6 @@ export default function JobOrderDetails() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
-
-  const handleStatusChange = async (newStatus) => {
-    setStatusUpdating(true);
-    setError("");
-    try {
-      await axiosInstance.put(`/joborders/${jobOrder._id}`, { status: newStatus });
-      await load();
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to update status");
-    } finally {
-      setStatusUpdating(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -244,11 +230,8 @@ export default function JobOrderDetails() {
                   {jobOrder.item?.itemCode} — {jobOrder.item?.name}
                 </div>
               </div>
-              <select
-                value={jobOrder.status}
-                disabled={statusUpdating}
-                onChange={(e) => handleStatusChange(e.target.value)}
-                className={`px-2 py-1 rounded text-xs border-none font-medium ${
+              <span
+                className={`px-2 py-1 rounded text-xs font-medium ${
                   jobOrder.status === "Completed"
                     ? "bg-green-100 text-green-700"
                     : jobOrder.status === "In Progress"
@@ -258,12 +241,8 @@ export default function JobOrderDetails() {
                     : "bg-slate-200 text-slate-500"
                 }`}
               >
-                <option value="Planned">Planned</option>
-                <option value="Released">Released</option>
-                <option value="On Hold">On Hold</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Completed">Completed</option>
-              </select>
+                {jobOrder.status}
+              </span>
             </div>
 
             <div className="space-y-3 text-sm">
