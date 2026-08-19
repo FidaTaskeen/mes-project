@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, ScanLine } from "lucide-react";
+import { ArrowLeft, ScanLine, Trash2 } from "lucide-react";
 import Layout from "../../components/Layout";
 import axiosInstance from "../../api/axiosInstance";
 
@@ -144,8 +144,8 @@ export default function ScanJobOrder() {
     if (!window.confirm("Delete this scan? This will also adjust the job order's counts.")) return;
     try {
       await axiosInstance.delete(`/scanlogs/${logId}`);
-      await loadAllLogs(allLogsPage);
       await loadJobOrderStatus(jobOrderId);
+      if (showAllLogs) await loadAllLogs(allLogsPage);
     } catch (err) {
       alert(err.response?.data?.message || "Failed to delete scan");
     }
@@ -311,11 +311,12 @@ export default function ScanJobOrder() {
                       <th className="px-4 py-2">Serial ID</th>
                       <th className="px-4 py-2">Time</th>
                       <th className="px-4 py-2">Status</th>
+                      <th className="px-4 py-2"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {logs.length === 0 ? (
-                      <tr><td colSpan="3" className="px-4 py-6 text-center text-slate-400">No scans yet.</td></tr>
+                      <tr><td colSpan="4" className="px-4 py-6 text-center text-slate-400">No scans yet.</td></tr>
                     ) : (
                       logs.map((log) => (
                         <tr key={log._id} className="border-t">
@@ -333,6 +334,15 @@ export default function ScanJobOrder() {
                             >
                               {log.status}
                             </span>
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <button
+                              onClick={() => handleDeleteLog(log._id)}
+                              className="text-red-500 hover:text-red-700"
+                              title="Delete scan"
+                            >
+                              <Trash2 size={14} />
+                            </button>
                           </td>
                         </tr>
                       ))
