@@ -1,6 +1,7 @@
 import { useAuth } from "../context/AuthContext";
-import { NavLink } from "react-router-dom";
 
+import { NavLink } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 const themes = {
   blue: {
     sidebarBg: "bg-blue-950",
