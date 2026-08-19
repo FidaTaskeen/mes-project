@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import Layout from "../../components/Layout";
 import axiosInstance from "../../api/axiosInstance";
 
 const navGroups = [
   {
     items: [
-      { label: "Dashboard", path: "/supervisor/dashboard" },
-      { label: "Job Order", path: "/supervisor/job-order-list" },
-      { label: "Traceability", path: "/supervisor/traceability" },
+      { label: "Operator Dashboard", path: "/operator/dashboard" },
+      { label: "Scan Job Order", path: "/operator/scan" },
+      { label: "Traceability", path: "/operator/traceability" },
+      { label: "My Operations", path: "/operator/my-operations" },
+      { label: "Production Entry", path: "/operator/production-entry" },
+      { label: "Production History", path: "/operator/history" },
+      { label: "My Performance", path: "/operator/performance" },
     ],
   },
 ];
@@ -19,7 +22,7 @@ const statusStyle = {
   "-": "bg-slate-100 text-slate-400",
 };
 
-export default function Traceability() {
+export default function OperatorTraceability() {
   const [serialId, setSerialId] = useState("");
   const [jobOrder, setJobOrder] = useState(null);
   const [trace, setTrace] = useState([]);
@@ -58,12 +61,8 @@ export default function Traceability() {
   };
 
   return (
-    <Layout portalName="Supervisor Portal" theme="green" navGroups={navGroups}>
-      <Link to="/supervisor/dashboard" className="text-sm text-green-700 hover:underline">
-        ← Back to Dashboard
-      </Link>
-
-      <div className="mt-4 mb-1 text-sm text-slate-500">
+    <Layout portalName="Operator Portal" theme="purple" navGroups={navGroups}>
+      <div className="mb-1 text-sm text-slate-500">
         Dashboard &gt; Traceability &gt; Process Traceability
       </div>
       <h1 className="text-2xl font-bold mb-5">Process Traceability</h1>
@@ -75,12 +74,13 @@ export default function Traceability() {
           onChange={(e) => setSerialId(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSearch()}
           placeholder="Enter or scan a serial number"
+          autoFocus
           className="w-full max-w-md border rounded-lg px-3 py-2 text-sm mb-3"
         />
         <div className="flex gap-2">
           <button
             onClick={handleSearch}
-            className="bg-green-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium"
+            className="bg-purple-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium"
           >
             Search
           </button>
@@ -118,7 +118,7 @@ export default function Traceability() {
             ) : (
               trace.map((row, i) => (
                 <tr key={i} className="border-t">
-                  <td className="px-4 py-3 font-medium text-green-700">{jobOrder?.jobOrderNo}</td>
+                  <td className="px-4 py-3 font-medium text-purple-700">{jobOrder?.jobOrderNo}</td>
                   <td className="px-4 py-3">{jobOrder?.item?.itemCode}</td>
                   <td className="px-4 py-3 font-medium">{row.operationCode} - {row.operationName}</td>
                   <td className="px-4 py-3">{serialId}</td>
