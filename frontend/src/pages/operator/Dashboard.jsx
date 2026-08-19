@@ -13,6 +13,7 @@ const navGroups = [
       { label: "Production Entry", path: "/operator/production-entry" },
       { label: "Production History", path: "/operator/history" },
       { label: "My Performance", path: "/operator/performance" },
+      { label: "Traceability", path: "/operator/traceability" },
     ],
   },
 ];
