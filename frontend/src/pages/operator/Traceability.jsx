@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import Layout from "../../components/Layout";
 import axiosInstance from "../../api/axiosInstance";
 
@@ -62,7 +63,11 @@ export default function OperatorTraceability() {
 
   return (
     <Layout portalName="Operator Portal" theme="purple" navGroups={navGroups}>
-      <div className="mb-1 text-sm text-slate-500">
+      <Link to="/operator/dashboard" className="text-sm text-purple-700 hover:underline">
+        ← Back to Dashboard
+      </Link>
+
+      <div className="mt-4 mb-1 text-sm text-slate-500">
         Dashboard &gt; Traceability &gt; Process Traceability
       </div>
       <h1 className="text-2xl font-bold mb-5">Process Traceability</h1>
