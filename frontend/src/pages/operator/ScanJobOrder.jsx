@@ -140,6 +140,17 @@ export default function ScanJobOrder() {
     }
   };
 
+  const handleDeleteLog = async (logId) => {
+    if (!window.confirm("Delete this scan? This will also adjust the job order's counts.")) return;
+    try {
+      await axiosInstance.delete(`/scanlogs/${logId}`);
+      await loadAllLogs(allLogsPage);
+      await loadJobOrderStatus(jobOrderId);
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to delete scan");
+    }
+  };
+
   const totalPages = Math.max(Math.ceil(allLogsTotal / 100), 1);
 
   return (
@@ -350,13 +361,14 @@ export default function ScanJobOrder() {
                   <th className="px-4 py-2">Time</th>
                   <th className="px-4 py-2">Status</th>
                   <th className="px-4 py-2">Scanned By</th>
+                  <th className="px-4 py-2"></th>
                 </tr>
               </thead>
               <tbody>
                 {allLogsLoading ? (
-                  <tr><td colSpan="4" className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
+                  <tr><td colSpan="5" className="px-4 py-6 text-center text-slate-400">Loading...</td></tr>
                 ) : allLogsData.length === 0 ? (
-                  <tr><td colSpan="4" className="px-4 py-6 text-center text-slate-400">No scans yet.</td></tr>
+                  <tr><td colSpan="5" className="px-4 py-6 text-center text-slate-400">No scans yet.</td></tr>
                 ) : (
                   allLogsData.map((log) => (
                     <tr key={log._id} className="border-t">
@@ -374,6 +386,14 @@ export default function ScanJobOrder() {
                         </span>
                       </td>
                       <td className="px-4 py-2">{log.scannedBy?.name || "—"}</td>
+                      <td className="px-4 py-2">
+                        <button
+                          onClick={() => handleDeleteLog(log._id)}
+                          className="text-red-600 text-xs hover:underline"
+                        >
+                          Delete
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}

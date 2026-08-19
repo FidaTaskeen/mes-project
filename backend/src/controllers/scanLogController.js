@@ -98,8 +98,12 @@ exports.addScan = async (req, res) => {
       });
     if (!jobOrder) return res.status(404).json({ message: 'Job order not found' });
 
-    if (jobOrder.status === 'Completed') {
+    const actuallyDone = jobOrder.completedQuantity + jobOrder.rejectQuantity >= jobOrder.quantity;
+    if (jobOrder.status === 'Completed' && actuallyDone) {
       return res.status(400).json({ message: 'This job order is already completed.' });
+    }
+    if (jobOrder.status === 'Completed' && !actuallyDone) {
+      jobOrder.status = 'In Progress'; // stale status -- self-correct
     }
     if (jobOrder.status === 'On Hold') {
       return res.status(400).json({ message: 'This job order is currently on hold.' });
@@ -122,6 +126,14 @@ exports.addScan = async (req, res) => {
       if (!allowedIds.includes(String(operationId))) {
         return res.status(403).json({ message: 'This operation is not assigned to you.' });
       }
+    }
+
+    // Hard cap: this station can never scan more units than the job order calls for.
+    const scannedAtThisOp = await ScanLog.countDocuments({ jobOrder: jobOrderId, operation: operationId });
+    if (scannedAtThisOp >= jobOrder.quantity) {
+      return res.status(400).json({
+        message: `All ${jobOrder.quantity} units have already been scanned at this operation.`,
+      });
     }
 
     if (jobOrder.item?.serialNoLength && serialId.length !== jobOrder.item.serialNoLength) {
@@ -186,6 +198,48 @@ exports.addScan = async (req, res) => {
     });
   } catch (err) {
     console.error('Add scan error:', err.message);
+    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+  }
+};
+
+// @route  DELETE /api/scanlogs/:id
+// Removes a scan log and rolls back the job order's counts/status if that
+// scan had been counted toward completedQuantity/rejectQuantity.
+exports.deleteScan = async (req, res) => {
+  try {
+    const log = await ScanLog.findById(req.params.id);
+    if (!log) return res.status(404).json({ message: 'Scan log not found' });
+
+    const jobOrder = await JobOrder.findById(log.jobOrder).populate({
+      path: 'routing',
+      populate: { path: 'lastScanOperation', select: '_id' },
+    });
+    if (!jobOrder) return res.status(404).json({ message: 'Associated job order not found' });
+
+    if (log.status === 'Fail') {
+      jobOrder.rejectQuantity = Math.max(jobOrder.rejectQuantity - 1, 0);
+    } else if (log.status === 'Pass') {
+      const lastOpId = jobOrder.routing.lastScanOperation?._id || jobOrder.routing.lastScanOperation;
+      if (lastOpId && String(lastOpId) === String(log.operation)) {
+        jobOrder.completedQuantity = Math.max(jobOrder.completedQuantity - 1, 0);
+      }
+    }
+
+    // If deleting this scan means the job order no longer actually meets
+    // its quantity, it can't still be Completed.
+    if (
+      jobOrder.status === 'Completed' &&
+      jobOrder.completedQuantity + jobOrder.rejectQuantity < jobOrder.quantity
+    ) {
+      jobOrder.status = 'In Progress';
+    }
+
+    await jobOrder.save();
+    await log.deleteOne();
+
+    res.status(200).json({ message: 'Scan deleted successfully', jobOrderStatus: jobOrder.status });
+  } catch (err) {
+    console.error('Delete scan error:', err.message);
     res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
 };
