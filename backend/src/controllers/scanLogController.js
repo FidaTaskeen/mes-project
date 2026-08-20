@@ -131,22 +131,14 @@ exports.addScan = async (req, res) => {
       }
     }
 
-    // Rework gate: ANY existing TRC record for this serial/operation means
-    // it once failed here. It can NEVER be scanned again in General mode --
-    // only Rework mode, and only once that record shows reworked (Pass at
-    // TRC check-out). A pending/unresolved TRC record blocks Rework mode too,
-    // since rework hasn't actually happened yet.
+    // Rework gate: check whether this serial has a TRC record at this
+    // operation, and whether it's been successfully reworked (Pass).
     const trcRecord = await TrcRecord.findOne({ jobOrder: jobOrderId, operation: operationId, serialId })
       .sort({ createdAt: -1 });
 
-    if (trcRecord && !reworkMode) {
-      if (trcRecord.reworked) {
-        return res.status(400).json({
-          message: 'This is a reworked serial number. Please scan it in the Rework area.',
-        });
-      }
+    if (trcRecord && trcRecord.reworked && !reworkMode) {
       return res.status(400).json({
-        message: `This serial previously failed at this operation and is pending rework (TRC status: ${trcRecord.status}). It can only be scanned again here in Rework mode, once TRC check-out passes it.`,
+        message: 'This is a reworked serial number. Please scan it in the Rework area.',
       });
     }
     if (reworkMode && (!trcRecord || !trcRecord.reworked)) {
@@ -155,11 +147,23 @@ exports.addScan = async (req, res) => {
       });
     }
 
-    const scannedAtThisOp = await ScanLog.countDocuments({ jobOrder: jobOrderId, operation: operationId, status: 'Pass' });
-    if (scannedAtThisOp >= jobOrder.quantity) {
-      return res.status(400).json({
-        message: `All ${jobOrder.quantity} units have already been scanned at this operation.`,
-      });
+    // Existing scan log for this exact serial + operation, regardless of status.
+    const existingLog = await ScanLog.findOne({ jobOrder: jobOrderId, operation: operationId, serialId });
+
+    if (!reworkMode) {
+      // General mode: this serial can only ever be scanned ONCE at this
+      // operation, Pass or Fail. Re-scanning is blocked outright -- the
+      // only way to scan it again is via a successful Rework check-out.
+      if (existingLog) {
+        return res.status(409).json({ message: 'This serial number has already been scanned at this operation.' });
+      }
+
+      const scannedAtThisOp = await ScanLog.countDocuments({ jobOrder: jobOrderId, operation: operationId });
+      if (scannedAtThisOp >= jobOrder.quantity) {
+        return res.status(400).json({
+          message: `All ${jobOrder.quantity} units have already been scanned at this operation.`,
+        });
+      }
     }
 
     if (jobOrder.item?.serialNoLength && serialId.length !== jobOrder.item.serialNoLength) {
@@ -184,22 +188,30 @@ exports.addScan = async (req, res) => {
       }
     }
 
-    // Only block a duplicate PASS at this exact operation -- a Fail followed
-    // later by a rework Pass at the same operation is a valid sequence.
-    const existingPass = await ScanLog.findOne({ jobOrder: jobOrderId, operation: operationId, serialId, status: 'Pass' });
-    if (existingPass) {
-      return res.status(409).json({ message: 'This serial number has already passed this operation.' });
+    let log;
+    let convertedFromFail = false;
+
+    if (reworkMode && existingLog) {
+      // Update the existing row in place instead of adding a duplicate --
+      // the Scan Log should show this serial once, with its current status.
+      convertedFromFail = existingLog.status === 'Fail' && status === 'Pass';
+      existingLog.status = status;
+      existingLog.scannedBy = req.user.id;
+      await existingLog.save();
+      log = existingLog;
+    } else {
+      log = await ScanLog.create({
+        jobOrder: jobOrderId,
+        operation: operationId,
+        serialId,
+        status,
+        scannedBy: req.user.id,
+      });
     }
 
-    const log = await ScanLog.create({
-      jobOrder: jobOrderId,
-      operation: operationId,
-      serialId,
-      status,
-      scannedBy: req.user.id,
-    });
-
-    if (status === 'Fail') {
+    if (status === 'Fail' && !convertedFromFail) {
+      // Only open a fresh TRC record for a brand-new Fail, not for a
+      // rework attempt that itself resulted in Fail again (rare edge case).
       await TrcRecord.create({
         jobOrder: jobOrderId,
         item: jobOrder.item._id || jobOrder.item,
@@ -215,7 +227,11 @@ exports.addScan = async (req, res) => {
       jobOrder.status = 'In Progress';
     }
 
-    if (status === 'Fail') {
+    if (convertedFromFail) {
+      // This unit's earlier Fail is being reversed into a Pass -- undo the
+      // reject count it added at the time.
+      jobOrder.rejectQuantity = Math.max(jobOrder.rejectQuantity - 1, 0);
+    } else if (status === 'Fail') {
       jobOrder.rejectQuantity += 1;
     }
 
