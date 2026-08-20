@@ -131,14 +131,22 @@ exports.addScan = async (req, res) => {
       }
     }
 
-    // Rework gate: check whether this serial has a TRC record at this
-    // operation, and whether it's been successfully reworked (Pass).
+    // Rework gate: ANY existing TRC record for this serial/operation means
+    // it once failed here. It can NEVER be scanned again in General mode --
+    // only Rework mode, and only once that record shows reworked (Pass at
+    // TRC check-out). A pending/unresolved TRC record blocks Rework mode too,
+    // since rework hasn't actually happened yet.
     const trcRecord = await TrcRecord.findOne({ jobOrder: jobOrderId, operation: operationId, serialId })
       .sort({ createdAt: -1 });
 
-    if (trcRecord && trcRecord.reworked && !reworkMode) {
+    if (trcRecord && !reworkMode) {
+      if (trcRecord.reworked) {
+        return res.status(400).json({
+          message: 'This is a reworked serial number. Please scan it in the Rework area.',
+        });
+      }
       return res.status(400).json({
-        message: 'This is a reworked serial number. Please scan it in the Rework area.',
+        message: `This serial previously failed at this operation and is pending rework (TRC status: ${trcRecord.status}). It can only be scanned again here in Rework mode, once TRC check-out passes it.`,
       });
     }
     if (reworkMode && (!trcRecord || !trcRecord.reworked)) {
