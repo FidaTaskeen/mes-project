@@ -32,6 +32,7 @@ export default function ScanJobOrder() {
   const [logs, setLogs] = useState([]);
   const [serialId, setSerialId] = useState("");
   const [scanStatus, setScanStatus] = useState("Pass");
+  const [scanArea, setScanArea] = useState("General"); // "General" | "Rework"  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [scanError, setScanError] = useState("");
@@ -42,6 +43,12 @@ export default function ScanJobOrder() {
   const [allLogsLoading, setAllLogsLoading] = useState(false);
   const [allLogsPage, setAllLogsPage] = useState(1);
   const [allLogsTotal, setAllLogsTotal] = useState(0);
+
+  // Fail -> Defect capture modal
+  const [showFailModal, setShowFailModal] = useState(false);
+  const [defect, setDefect] = useState("");
+  const [defectLocation, setDefectLocation] = useState("");
+  const [failModalError, setFailModalError] = useState("");
 
   const loadJobOrderStatus = async (id) => {
     setLoading(true);
@@ -113,6 +120,22 @@ export default function ScanJobOrder() {
     }
   };
 
+  const submitScan = async (extra = {}) => {
+  try {
+    await axiosInstance.post("/scanlogs", {
+      jobOrder: jobOrderId,
+      operation: operationId,
+      serialId: serialId.trim(),
+      status: scanStatus,
+      reworkMode: scanArea === "Rework",
+      ...extra,
+    });
+    setSerialId("");
+    loadJobOrderStatus(jobOrderId);
+  } catch (err) {
+    setScanError(err.response?.data?.message || "Failed to record scan");
+  }
+};
   const handleScanSubmit = async (e) => {
     e.preventDefault();
     if (!serialId.trim()) return;
@@ -126,18 +149,25 @@ export default function ScanJobOrder() {
       return;
     }
     setScanError("");
-    try {
-      await axiosInstance.post("/scanlogs", {
-        jobOrder: jobOrderId,
-        operation: operationId,
-        serialId: serialId.trim(),
-        status: scanStatus,
-      });
-      setSerialId("");
-      loadJobOrderStatus(jobOrderId);
-    } catch (err) {
-      setScanError(err.response?.data?.message || "Failed to record scan");
+
+    if (scanStatus === "Fail") {
+      setDefect("");
+      setDefectLocation("");
+      setFailModalError("");
+      setShowFailModal(true);
+      return;
     }
+
+    submitScan();
+  };
+
+  const handleFailModalSubmit = async () => {
+    if (!defect.trim() || !defectLocation.trim()) {
+      setFailModalError("Defect and Defect Location are both required.");
+      return;
+    }
+    setShowFailModal(false);
+    await submitScan({ defect: defect.trim(), defectLocation: defectLocation.trim() });
   };
 
   const handleDeleteLog = async (logId) => {
@@ -267,6 +297,24 @@ export default function ScanJobOrder() {
                   </p>
                 )}
                 {!status?.jobOrder?.item?.serialNoLength && <div className="mb-3" />}
+              <div className="flex gap-4 mb-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                     type="radio"
+                     checked={scanArea === "General"}
+                      onChange={() => setScanArea("General")}
+                     />
+                        <span className="font-medium">General</span>
+                   </label>
+                  <label className="flex items-center gap-2 text-sm">
+                     <input
+                     type="radio"
+                     checked={scanArea === "Rework"}
+                     onChange={() => setScanArea("Rework")}
+                     />
+                       <span className="text-amber-600 font-medium">Rework</span>
+                   </label>
+               </div>
                 <div className="flex gap-4 mb-4">
                   <label className="flex items-center gap-2 text-sm">
                     <input
@@ -429,6 +477,46 @@ export default function ScanJobOrder() {
                   Next
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFailModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h2 className="text-lg font-bold mb-4">Fail — Enter Defect Details</h2>
+            {failModalError && (
+              <div className="bg-red-50 text-red-600 text-sm p-2 rounded mb-3">{failModalError}</div>
+            )}
+            <label className="block text-sm font-medium mb-1">Defect *</label>
+            <input
+              value={defect}
+              onChange={(e) => setDefect(e.target.value)}
+              placeholder="e.g. Wrong polarity"
+              className="w-full border rounded-lg px-3 py-2 mb-3 text-sm"
+              autoFocus
+            />
+            <label className="block text-sm font-medium mb-1">Defect Location *</label>
+            <input
+              value={defectLocation}
+              onChange={(e) => setDefectLocation(e.target.value)}
+              placeholder="e.g. Top-left corner, R12"
+              className="w-full border rounded-lg px-3 py-2 mb-4 text-sm"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowFailModal(false)}
+                className="px-4 py-2 text-sm text-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleFailModalSubmit}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
+              >
+                Submit Fail
+              </button>
             </div>
           </div>
         </div>

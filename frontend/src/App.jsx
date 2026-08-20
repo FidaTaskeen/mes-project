@@ -31,6 +31,9 @@ import OperatorTraceability from "./pages/operator/Traceability";
 import Routing from "./pages/admin/Routing";
 import RoutingForm from "./pages/admin/RoutingForm";
 import RoutingView from "./pages/admin/RoutingView";
+import ReworkDashboard from "./pages/rework/Dashboard";
+import TrcList from "./pages/rework/TrcList";
+import TrcDetail from "./pages/rework/TrcDetail";
 
 export default function App() {
   return (
@@ -285,7 +288,31 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
+        {/* Rework routes */}
+<Route
+  path="/rework/dashboard"
+  element={
+    <ProtectedRoute allowedRoles={["rework"]}>
+      <ReworkDashboard />
+    </ProtectedRoute>
+  }
+/>
+<Route
+  path="/rework/trc"
+  element={
+    <ProtectedRoute allowedRoles={["rework"]}>
+      <TrcList />
+    </ProtectedRoute>
+  }
+/>
+<Route
+  path="/rework/trc/:id"
+  element={
+    <ProtectedRoute allowedRoles={["rework"]}>
+      <TrcDetail />
+    </ProtectedRoute>
+  }
+/>
           <Route path="/unauthorized" element={<h1 className="p-8">Not authorized</h1>} />
         </Routes>
       </BrowserRouter>

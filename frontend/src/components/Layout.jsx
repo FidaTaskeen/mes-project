@@ -1,5 +1,3 @@
-
-
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 const themes = {
@@ -21,14 +19,18 @@ const themes = {
     activeBg: "bg-purple-700",
     hoverBg: "hover:bg-purple-800",
   },
+  amber: {
+    sidebarBg: "bg-amber-900",
+    headerBg: "bg-amber-800",
+    activeBg: "bg-amber-600",
+    hoverBg: "hover:bg-amber-700",
+  },
 };
-
 // navGroups example:
 // [{ title: "MASTER DATA", items: [{ label: "Items", path: "/admin/items" }] }]
 export default function Layout({ portalName, theme = "blue", navGroups, children }) {
   const { user, logout } = useAuth();
   const colors = themes[theme];
-
   return (
     <div className="min-h-screen flex bg-slate-50">
       {/* Sidebar */}
@@ -36,7 +38,6 @@ export default function Layout({ portalName, theme = "blue", navGroups, children
         <div className={`${colors.headerBg} px-4 py-5`}>
           <h2 className="font-bold text-lg">{portalName}</h2>
         </div>
-
         <nav className="flex-1 overflow-y-auto py-4">
           {navGroups.map((group, i) => (
             <div key={i} className="mb-4">
@@ -62,7 +63,6 @@ export default function Layout({ portalName, theme = "blue", navGroups, children
           ))}
         </nav>
       </aside>
-
       {/* Main content area */}
       <div className="flex-1 flex flex-col">
         <header className="bg-white border-b px-6 py-4 flex justify-between items-center">
@@ -76,7 +76,6 @@ export default function Layout({ portalName, theme = "blue", navGroups, children
             </button>
           </div>
         </header>
-
         <main className="flex-1 p-6">{children}</main>
       </div>
     </div>
