@@ -32,7 +32,7 @@ export default function ScanJobOrder() {
   const [logs, setLogs] = useState([]);
   const [serialId, setSerialId] = useState("");
   const [scanStatus, setScanStatus] = useState("Pass");
-  const [scanArea, setScanArea] = useState("General"); // "General" | "Rework"  
+  const [scanArea, setScanArea] = useState("General"); // "General" | "Rework"
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [scanError, setScanError] = useState("");
@@ -121,21 +121,22 @@ export default function ScanJobOrder() {
   };
 
   const submitScan = async (extra = {}) => {
-  try {
-    await axiosInstance.post("/scanlogs", {
-      jobOrder: jobOrderId,
-      operation: operationId,
-      serialId: serialId.trim(),
-      status: scanStatus,
-      reworkMode: scanArea === "Rework",
-      ...extra,
-    });
-    setSerialId("");
-    loadJobOrderStatus(jobOrderId);
-  } catch (err) {
-    setScanError(err.response?.data?.message || "Failed to record scan");
-  }
-};
+    try {
+      await axiosInstance.post("/scanlogs", {
+        jobOrder: jobOrderId,
+        operation: operationId,
+        serialId: serialId.trim(),
+        status: scanStatus,
+        reworkMode: scanArea === "Rework",
+        ...extra,
+      });
+      setSerialId("");
+      loadJobOrderStatus(jobOrderId);
+    } catch (err) {
+      setScanError(err.response?.data?.message || "Failed to record scan");
+    }
+  };
+
   const handleScanSubmit = async (e) => {
     e.preventDefault();
     if (!serialId.trim()) return;
@@ -273,6 +274,24 @@ export default function ScanJobOrder() {
                 <div className="bg-red-50 text-red-600 text-sm p-2 rounded mb-3">{scanError}</div>
               )}
               <form onSubmit={handleScanSubmit}>
+                <div className="flex gap-4 mb-3">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      checked={scanArea === "General"}
+                      onChange={() => setScanArea("General")}
+                    />
+                    <span className="font-medium">General</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      checked={scanArea === "Rework"}
+                      onChange={() => setScanArea("Rework")}
+                    />
+                    <span className="text-amber-600 font-medium">Rework</span>
+                  </label>
+                </div>
                 <div className="relative mb-1">
                   <ScanLine size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
@@ -297,24 +316,6 @@ export default function ScanJobOrder() {
                   </p>
                 )}
                 {!status?.jobOrder?.item?.serialNoLength && <div className="mb-3" />}
-              <div className="flex gap-4 mb-4">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                     type="radio"
-                     checked={scanArea === "General"}
-                      onChange={() => setScanArea("General")}
-                     />
-                        <span className="font-medium">General</span>
-                   </label>
-                  <label className="flex items-center gap-2 text-sm">
-                     <input
-                     type="radio"
-                     checked={scanArea === "Rework"}
-                     onChange={() => setScanArea("Rework")}
-                     />
-                       <span className="text-amber-600 font-medium">Rework</span>
-                   </label>
-               </div>
                 <div className="flex gap-4 mb-4">
                   <label className="flex items-center gap-2 text-sm">
                     <input
