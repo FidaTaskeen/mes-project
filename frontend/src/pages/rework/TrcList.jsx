@@ -19,6 +19,12 @@ const statusBadge = {
   CheckedOut: "bg-green-100 text-green-700",
 };
 
+const statusLabel = {
+  Pending: "TRC CheckIn",
+  CheckedIn: "TRC CheckIn",
+  CheckedOut: "TRC CheckOut",
+};
+
 const agingDays = (dateStr) => {
   const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
   return `${days}d`;
@@ -139,7 +145,7 @@ export default function TrcList() {
                     <td className="px-4 py-3">{r.serialId}</td>
                     <td className="px-4 py-3">{r.operation?.operationCode} - {r.operation?.operationName}</td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded text-xs ${statusBadge[r.status]}`}>{r.status}</span>
+                      <span className={`px-2 py-0.5 rounded text-xs ${statusBadge[r.status]}`}>{statusLabel[r.status]}</span>
                     </td>
                   </tr>
                 ))

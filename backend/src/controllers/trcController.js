@@ -15,7 +15,7 @@ exports.getTrcQueue = async (req, res) => {
     const { status, date, jobOrder, serialId, operation } = req.query;
     const filter = {};
     if (status) filter.status = status;
-    else filter.status = { $in: ['Pending', 'CheckedIn'] }; // "In & Out" default view
+    // no default status filter -- show Pending, CheckedIn, and CheckedOut all together
     if (jobOrder) filter.jobOrder = jobOrder;
     if (serialId) filter.serialId = { $regex: serialId, $options: 'i' };
     if (operation) filter.operation = operation;
